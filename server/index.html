@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartoon Studio — استوديو الكرتون</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #e2e8f0; min-height: 100vh; padding: 24px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 4px; color: #fbbf24; }
+  .sub { color: #94a3b8; margin-bottom: 24px; font-size: 14px; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+    padding: 20px; margin-bottom: 18px;
+  }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569;
+    background: #0f172a; color: #e2e8f0; font-size: 15px; margin-top: 6px;
+  }
+  button {
+    padding: 12px 20px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 15px; font-weight: 600;
+  }
+  .btn-primary { background: #f59e0b; color: #0f172a; }
+  .btn-ghost { background: #334155; color: #e2e8f0; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .serie { border: 1px solid #334155; border-radius: 12px; padding: 16px; background: #0f172a; cursor: pointer; transition: .15s; }
+  .serie:hover, .serie.sel { border-color: #f59e0b; background: #16213a; }
+  .serie h3 { color: #fbbf24; margin-bottom: 6px; }
+  .serie p { font-size: 13px; color: #94a3b8; }
+  .badge { display: inline-block; background: #334155; border-radius: 20px; padding: 2px 10px; font-size: 12px; margin-top: 8px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .prog { background: #0f172a; border-radius: 20px; height: 12px; overflow: hidden; border: 1px solid #334155; margin-top: 12px; }
+  .prog > div { height: 100%; background: #f59e0b; width: 0%; transition: width .5s; }
+  .job { border: 1px solid #334155; border-radius: 12px; padding: 14px; margin-bottom: 10px; background: #0f172a; }
+  .job h4 { color: #fbbf24; font-size: 15px; }
+  .muted { color: #94a3b8; font-size: 13px; }
+  .thumb { width: 100%; border-radius: 8px; border: 1px solid #334155; }
+  .imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; }
+  label.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .hide { display: none; }
+  .err { color: #f87171; font-size: 14px; margin-top: 8px; }
+  a { color: #93c5fd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎬 Cartoon Studio</h1>
+  <div class="sub">توليد سلسلة كرتونية أصلية كاملة (سيناريو + صور + أصوات) في السحابة</div>
+
+  <div id="loginBox" class="card">
+    <div class="row">
+      <input type="password" id="pw" placeholder="كلمة المرور">
+      <button class="btn-primary" onclick="login()">دخول</button>
+    </div>
+    <div id="loginErr" class="err"></div>
+  </div>
+
+  <div id="mainBox" class="hide">
+    <div class="card">
+      <h3 style="margin-bottom:10px">1) اختر سلسلة جاهزة</h3>
+      <div class="sub" id="universeInfo" style="margin-bottom:10px"></div>
+      <div class="grid" id="packs"></div>
+      <h3 style="margin:18px 0 10px">2) أو اكتب فكرتك بنفسك (سيناريو/قصة/فكرة قصيرة)</h3>
+      <textarea id="idea" rows="4" placeholder="مثال: فتاة تعيش في مدينة تحت البحر تكتشف أن كل سفينة تغرق فيها روح محبوسة، وتقرر مساعدتها بدل الهروب..." style="width:100%;padding:12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font-size:15px;font-family:inherit;resize:vertical"></textarea>
+      <div class="sub" style="margin-top:6px">لو كتبت فكرة، بتتجاهل اختيار السلسلة وتولّد من فكرتك مباشرة.</div>
+      <div class="row" style="margin-top:14px">
+        <input type="text" id="titleOverride" placeholder="عنوان مخصص (اختياري)">
+        <label class="chk"><input type="checkbox" id="renderVideo"> رندر فيديو mp4 (أبطأ)</label>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn-primary" id="genBtn" onclick="generate()">توليد الحلقة</button>
+        <button class="btn-ghost" onclick="refreshJobs()">تحديث</button>
+      </div>
+      <div id="genErr" class="err"></div>
+    </div>
+
+    <div class="card" id="activeCard">
+      <h3>المهمة الحالية</h3>
+      <div id="activeStatus" class="muted">لا توجد مهمة</div>
+      <div class="prog" id="prog"><div id="progFill"></div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:10px">المهام السابقة</h3>
+      <div id="jobsList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let TOKEN = localStorage.getItem('cs_token') || '';
+let selected = null;
+let pollTimer = null;
+
+function login() {
+  const password = document.getElementById('pw').value;
+  fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (ok) { TOKEN = d.token; localStorage.setItem('cs_token', TOKEN); showMain(); }
+      else { document.getElementById('loginErr').textContent = 'كلمة المرور غير صحيحة'; }
+    });
+}
+
+function auth() {
+  const h = { 'X-Admin-Token': TOKEN };
+  return h;
+}
+
+function showMain() {
+  document.getElementById('loginBox').classList.add('hide');
+  document.getElementById('mainBox').classList.remove('hide');
+  loadPacks(); refreshJobs();
+}
+
+function loadPacks() {
+  fetch('/api/packs', { headers: auth() })
+    .then(r => r.json())
+    .then(data => {
+      const { packs, universe } = data;
+      const info = document.getElementById('universeInfo');
+      if (universe && info) info.textContent = `${universe.name} — ${universe.tagline}`;
+      const el = document.getElementById('packs');
+      el.innerHTML = '';
+      packs.forEach(p => {
+        const d = document.createElement('div');
+        d.className = 'serie';
+        d.onclick = () => { selected = p.index; el.querySelectorAll('.serie').forEach(s => s.classList.remove('sel')); d.classList.add('sel'); };
+        d.innerHTML = `<h3>${p.title}</h3><p>${p.logline}</p>
+          <span class="badge">${p.genre}</span>
+          <span class="badge">${p.pilot_title}</span>
+          <span class="badge">${p.scenes} مشاهد</span>`;
+        el.appendChild(d);
+      });
+    });
+}
+
+function generate() {
+  const idea = document.getElementById('idea').value.trim();
+  if (!selected && !idea) { document.getElementById('genErr').textContent = 'اختر سلسلة أو اكتب فكرة'; return; }
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  document.getElementById('genErr').textContent = '';
+  const payload = {
+    title: document.getElementById('titleOverride').value || null,
+    render_video: document.getElementById('renderVideo').checked
+  };
+  if (idea) { payload.idea = idea; } else { payload.index = selected; }
+  fetch('/api/jobs', {
+    method: 'POST',
+    headers: { ...auth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (!ok) { document.getElementById('genErr').textContent = d.detail || 'خطأ'; btn.disabled = false; return; }
+      startPolling(d.id);
+      refreshJobs();
+    });
+}
+
+function startPolling(id) {
+  document.getElementById('progFill').style.width = '0%';
+  document.getElementById('activeStatus').textContent = 'التحميل...';
+  document.getElementById('activeCard').classList.remove('hide');
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    fetch(`/api/jobs/${id}`, { headers: auth() })
+      .then(r => r.json())
+      .then(j => {
+        if (j.status === 'error') {
+          document.getElementById('activeStatus').textContent = 'خطأ: ' + (j.error || 'مجهول');
+          clearInterval(pollTimer); refreshJobs(); document.getElementById('genBtn').disabled = false;
+          return;
+        }
+        document.getElementById('progFill').style.width = (j.progress || 0) + '%';
+        let t = `المشهد ${j.scene || '-'} — ${j.phase}`;
+        if (j.status === 'done') { t = 'اكتمل ✓ '; clearInterval(pollTimer); document.getElementById('genBtn').disabled = false; }
+        document.getElementById('activeStatus').textContent = t;
+        if (j.status === 'done') refreshJobs();
+      });
+  }, 4000);
+}
+
+function refreshJobs() {
+  fetch('/api/jobs', { headers: auth() })
+    .then(r => r.json())
+    .then(({ jobs }) => renderJobs(jobs));
+}
+
+function renderJobs(jobs) {
+  const el = document.getElementById('jobsList');
+  el.innerHTML = '';
+  jobs.forEach(j => {
+    const d = document.createElement('div');
+    d.className = 'job';
+    const srcLabel = j.source === 'llm' ? 'مخصص بالذكاء الاصطناعي' : (j.pack_slug && j.pack_slug.startsWith('custom-') ? 'قالب مخصص' : 'سلسلة جاهزة');
+    let body = `<div class="row"><h4>${j.pack_title || 'مهمة'}</h4>
+      <span class="badge">${j.status}</span>
+      <span class="badge">${j.progress}%</span>
+      <span class="badge">${srcLabel}</span></div>
+      <div class="muted">${j.phase}${j.scene ? ' — مشهد ' + j.scene : ''} · ${new Date(j.created).toLocaleString()}</div>`;
+    if (j.error) body += `<div class="err">${j.error}</div>`;
+    if (j.status === 'done') {
+      body += `<div class="row" style="margin-top:8px">
+        <a href="/api/jobs/${j.id}/download" class="btn-primary" style="text-decoration:none;padding:8px 14px;border-radius:8px">تنزيل ZIP</a>
+        ${j.has_video ? `<a href="/api/jobs/${j.id}/asset?path=video/final.mp4" style="text-decoration:none;padding:8px 14px;background:#334155;border-radius:8px">الفيديو النهائي</a>` : ''}
+        <button class="btn-ghost" onclick="toggleImgs('${j.id}')">معاينة الصور</button></div>
+        <div class="imgs hide" id="imgs-${j.id}"></div>`;
+    }
+    d.innerHTML = body;
+    el.appendChild(d);
+  });
+}
+
+function toggleImgs(id) {
+  const box = document.getElementById('imgs-' + id);
+  if (!box.classList.contains('hide')) { box.classList.add('hide'); return; }
+  fetch('/api/jobs', { headers: auth() })
+    .then(r => r.json())
+    .then(({ jobs }) => {
+      const j = jobs.find(x => x.id === id);
+      if (!j) return;
+      box.classList.remove('hide');
+      box.innerHTML = '';
+      (j.images || []).forEach(p => {
+        const img = document.createElement('img');
+        img.className = 'thumb';
+        img.src = `/api/jobs/${id}/asset?path=${encodeURIComponent(p)}`;
+        img.onerror = () => img.remove();
+        box.appendChild(img);
+      });
+    });
+}
+
+if (TOKEN) { showMain(); }
+</script>
+</body>
+</html>

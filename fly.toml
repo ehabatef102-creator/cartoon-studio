@@ -1,0 +1,26 @@
+app = "cartoon-studio"
+primary_region = "ams"
+
+[build]
+
+[env]
+  PORT = "8000"
+  DEFAULT_VOICE = "ar-EG-SalmaNeural"
+  IMAGE_PROVIDER = "auto"
+  ADMIN_PASSWORD = "غيّر-هذه-الكلمة"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+  max_machines_running = 1
+
+[[http_service.ports]]
+  handlers = ["http"]
+  port = 80
+
+[[http_service.ports]]
+  handlers = ["https"]
+  port = 443

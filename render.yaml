@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: cartoon-studio
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DEFAULT_VOICE
+        value: ar-EG-SalmaNeural
+      - key: IMAGE_PROVIDER
+        value: auto
+      - key: STABILITY_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
