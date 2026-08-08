@@ -1,9 +1,10 @@
 services:
   - type: web
     name: cartoon-studio
-    runtime: docker
+    runtime: python
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server.app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ADMIN_PASSWORD
         sync: false
@@ -15,3 +16,5 @@ services:
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.3

@@ -36,6 +36,31 @@ def _run(cmd, timeout=900):
     return proc
 
 
+def ffmpeg_exe():
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe:
+            return exe
+    except Exception:
+        pass
+    raise RuntimeError("ffmpeg غير متوفر على السيرفر")
+
+
+_FFMPEG = None
+
+
+def FFMPEG():
+    global _FFMPEG
+    if _FFMPEG is None:
+        _FFMPEG = ffmpeg_exe()
+    return _FFMPEG
+
+
 async def _pollinations_image(client, prompt, out_path, seed):
     q = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{q}?width=1280&height=720&seed={seed}&nologo=true&model=flux"
@@ -117,7 +142,7 @@ async def gen_voice(client, text, out_path):
 def build_scene_audio(voice_files, out_audio, seconds):
     if voice_files:
         n = len(voice_files)
-        cmd = ["ffmpeg", "-y"]
+        cmd = [FFMPEG(), "-y"]
         for f in voice_files:
             cmd += ["-i", str(f)]
         graph = "".join(f"[{i}:a]aresample=24000,atrim=0:60,asetpts=N/SR/TB[{i}a];" for i in range(n))
@@ -125,9 +150,9 @@ def build_scene_audio(voice_files, out_audio, seconds):
         cmd += ["-filter_complex", graph, "-map", "[a]", "-c:a", "aac", str(out_audio)]
         _run(cmd, timeout=300)
     else:
-        _run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", str(seconds), "-c:a", "aac", str(out_audio)], timeout=120)
+        _run([FFMPEG(), "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", str(seconds), "-c:a", "aac", str(out_audio)], timeout=120)
     padded = out_audio.with_name(out_audio.stem + "_padded.aac")
-    _run(["ffmpeg", "-y", "-i", str(out_audio), "-af", "apad", "-t", str(seconds), "-c:a", "aac", str(padded)], timeout=120)
+    _run([FFMPEG(), "-y", "-i", str(out_audio), "-af", "apad", "-t", str(seconds), "-c:a", "aac", str(padded)], timeout=120)
     padded.replace(out_audio)
 
 
@@ -145,7 +170,7 @@ def render_still_video(image, audio, out_mp4, seconds, zoom_in=True):
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1280x720:fps=24[v]"
     )
     cmd = [
-        "ffmpeg", "-y", "-loop", "1", "-framerate", "24", "-i", str(image),
+        FFMPEG(), "-y", "-loop", "1", "-framerate", "24", "-i", str(image),
     ]
     if audio and audio.exists():
         cmd += ["-i", str(audio)]
@@ -161,12 +186,12 @@ def render_still_video(image, audio, out_mp4, seconds, zoom_in=True):
 def concat_videos(videos, out_mp4):
     lst = out_mp4.with_name("concat.txt")
     lst.write_text("\n".join(f"file '{f.resolve().as_posix()}'" for f in videos), encoding="utf-8")
-    _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out_mp4)], timeout=600)
+    _run([FFMPEG(), "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out_mp4)], timeout=600)
 
 
 def color_grade(input_video, out_mp4):
     _run([
-        "ffmpeg", "-y", "-i", str(input_video),
+        FFMPEG(), "-y", "-i", str(input_video),
         "-vf", "eq=saturation=1.18:contrast=1.06:brightness=0.01,vignette=PI/5,noise=alls=6:allf=t",
         "-c:v", "libx264", "-preset", "veryfast", "-c:a", "copy", str(out_mp4),
     ], timeout=900)
@@ -231,8 +256,10 @@ async def run_job(job, workspace, pack, render_video):
         if render_video:
             job["phase"] = "رندر الفيديو السينمائي (يستغرق عدة دقائق)"
             save_job(job)
-            if shutil.which("ffmpeg") is None:
-                raise RuntimeError("ffmpeg غير متوفر على السيرفر")
+            try:
+                FFMPEG()
+            except Exception as exc:
+                raise RuntimeError("ffmpeg غير متوفر على السيرفر") from exc
 
             title_card = tmp_dir / "title.png"
             end_card = tmp_dir / "end.png"
