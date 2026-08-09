@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -27,6 +28,14 @@ JOBS_DIR = WORKSPACE / "jobs"
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Cartoon Studio", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 JOBS = {}
 

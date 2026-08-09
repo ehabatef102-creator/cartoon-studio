@@ -33,12 +33,17 @@
   const state = {
     mode: null,
     token: localStorage.getItem("studio_token") || "",
+    apiBase: (localStorage.getItem("studio_api_base") || "").replace(/\/+$/, ""),
     packs: [],
     selected: 1,
     project: null,
     running: false,
     meta: { universe: null },
   };
+
+  function apiUrl(path) {
+    return state.apiBase + path;
+  }
 
   let SHARED_AC = null;
   function sharedAudio() {
@@ -76,17 +81,24 @@
 
   /* ---------------- وضع التشغيل ---------------- */
   async function detectMode() {
-    try {
-      const r = await fetch("/api/packs");
-      if (r.ok) {
-        const d = await r.json();
-        if (d && Array.isArray(d.packs)) {
-          state.mode = "server";
-          if (!state.token) state.token = "admin123";
-          return d;
+    const bases = [];
+    if (state.apiBase) bases.push(state.apiBase);
+    bases.push(""); // نفس الأصل (الخادم المستضاف ذاتيًا)
+    const token = state.token || "admin123";
+    for (const base of bases) {
+      try {
+        const r = await fetch(base + "/api/packs", { headers: { "x-admin-token": token } });
+        if (r.ok) {
+          const d = await r.json();
+          if (d && Array.isArray(d.packs)) {
+            state.mode = "server";
+            state.apiBase = base;
+            if (!state.token) state.token = token;
+            return d;
+          }
         }
-      }
-    } catch (e) { /* غير موجود → متصفح */ }
+      } catch (e) { /* جرّب الأساس التالي */ }
+    }
     state.mode = "client";
     try {
       const d = await fetchJSON("packs.json");
@@ -723,7 +735,7 @@
     setPhase("writing");
     setProgress(2, "تجهيز المهمة…");
 
-    const r = await fetch("/api/jobs", {
+    const r = await fetch(apiUrl("/api/jobs"), {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-token": state.token },
       body: JSON.stringify(body),
@@ -738,11 +750,11 @@
     let storyboard = null;
     const poll = setInterval(async () => {
       try {
-        const j = await fetchJSON("/api/jobs/" + id, { headers: { "x-admin-token": state.token } });
+        const j = await fetchJSON(apiUrl("/api/jobs/" + id), { headers: { "x-admin-token": state.token } });
         updateServerJob(j);
         if (j.status === "done") {
           clearInterval(poll);
-          try { storyboard = await fetchJSON("/api/jobs/" + id + "/asset?path=storyboard.json", { headers: { "x-admin-token": state.token } }); } catch (e) {}
+          try { storyboard = await fetchJSON(apiUrl("/api/jobs/" + id + "/asset?path=storyboard.json"), { headers: { "x-admin-token": state.token } }); } catch (e) {}
           finishServerJob(j, storyboard);
         } else if (j.status === "error" || j.status === "failed") {
           clearInterval(poll);
@@ -772,7 +784,7 @@
       j.images.forEach((p, i) => {
         const n = +(p.match(/scene_(\d+)/) || [])[1];
         if (n && !$(`#scene-card-${n} img`).dataset.loaded) {
-          setSceneImage(n, "/api/jobs/" + j.id + "/asset?path=" + encodeURIComponent(p) + "&token=" + encodeURIComponent(state.token));
+          setSceneImage(n, apiUrl("/api/jobs/" + j.id + "/asset?path=" + encodeURIComponent(p) + "&token=" + encodeURIComponent(state.token)));
           $(`#scene-card-${n} img`).dataset.loaded = "1";
         }
       });
@@ -791,7 +803,7 @@
     const video = document.createElement("video");
     video.controls = true;
     video.className = "preview-video";
-    video.src = "/api/jobs/" + j.id + "/asset?path=video%2Ffinal.mp4&token=" + encodeURIComponent(state.token);
+    video.src = apiUrl("/api/jobs/" + j.id + "/asset?path=video%2Ffinal.mp4&token=" + encodeURIComponent(state.token));
     const vc = $("#result-video .result-empty");
     if (vc) vc.replaceWith(video);
 
@@ -805,10 +817,10 @@
       box.appendChild(a);
       icons();
     };
-    mk("تحميل كل شيء (ZIP)", "folder-down", "/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token));
-    mk("الستوريبورد", "layout-dashboard", "/api/jobs/" + j.id + "/asset?path=storyboard.json&token=" + encodeURIComponent(state.token));
+    mk("تحميل كل شيء (ZIP)", "folder-down", apiUrl("/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token)));
+    mk("الستوريبورد", "layout-dashboard", apiUrl("/api/jobs/" + j.id + "/asset?path=storyboard.json&token=" + encodeURIComponent(state.token)));
     if (!j.images || !j.images.length) return;
-    mk("تحميل الصور", "image", "/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token) + "&view=images");
+    mk("تحميل الصور", "image", apiUrl("/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token) + "&view=images"));
   }
 
   /* ---------------- بدء الإنتاج ---------------- */
@@ -840,14 +852,18 @@
     const modal = $("#settings-modal");
     $("#btn-settings").addEventListener("click", () => {
       $("#admin-pass").value = state.token;
+      $("#api-base").value = state.apiBase;
       modal.classList.remove("is-hidden");
       icons();
     });
     $("#settings-close").addEventListener("click", () => modal.classList.add("is-hidden"));
-    $("#settings-save").addEventListener("click", () => {
+    $("#settings-save").addEventListener("click", async () => {
       state.token = $("#admin-pass").value.trim();
+      state.apiBase = ($("#api-base").value || "").trim().replace(/\/+$/, "");
       localStorage.setItem("studio_token", state.token);
+      localStorage.setItem("studio_api_base", state.apiBase);
       modal.classList.add("is-hidden");
+      await init();
     });
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("is-hidden"); });
   }
