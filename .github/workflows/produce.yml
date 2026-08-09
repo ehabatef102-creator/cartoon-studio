@@ -1,0 +1,79 @@
+name: produce-episode
+
+on:
+  workflow_dispatch:
+    inputs:
+      story:
+        description: "قصة الحلقة / الفكرة (اتركها فارغة لاستخدام سلسلة جاهزة)"
+        required: false
+        type: string
+        default: ""
+      index:
+        description: "سلسلة جاهزة من المكتبة (تُستخدم لو القصة فارغة)"
+        required: false
+        type: choice
+        options: ["1", "2", "3"]
+        default: "1"
+      video:
+        description: "توليد فيديو المونتاج النهائي"
+        required: false
+        type: boolean
+        default: true
+      music:
+        description: "موسيقى تصويرية + مؤثرات صوتية"
+        required: false
+        type: boolean
+        default: true
+      motion:
+        description: "حركة كاميرا سينمائية"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Prepare story file
+        env:
+          STORY: ${{ github.event.inputs.story }}
+        run: |
+          if [ -n "$STORY" ]; then
+            printf '%s' "$STORY" > story.txt
+          fi
+
+      - name: Run production on cloud
+        env:
+          IDX: ${{ github.event.inputs.index }}
+          VIDEO: ${{ fromJSON(github.event.inputs.video) && '--video' || '' }}
+          MUSIC: ${{ fromJSON(github.event.inputs.music) && '--music' || '' }}
+          MOTION: ${{ fromJSON(github.event.inputs.motion) && '--motion' || '' }}
+          STORY_FILE: ${{ github.event.inputs.story != '' && 'story.txt' || '' }}
+        run: |
+          python scripts/produce.py \
+            ${IDX:+--index $IDX} \
+            ${VIDEO:+$VIDEO} \
+            ${MUSIC:+$MUSIC} \
+            ${MOTION:+$MOTION} \
+            ${STORY_FILE:+--story-file "$STORY_FILE"} \
+            --out output
+
+      - name: Upload episode ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: episode
+          path: output/*.zip
+          retention-days: 90

@@ -64,19 +64,29 @@ def FFMPEG():
 
 async def _pollinations_image(client, prompt, out_path, seed):
     q = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{q}?width=1280&height=720&seed={seed}&nologo=true&model=flux"
+    url = (
+        f"https://image.pollinations.ai/prompt/{q}"
+        f"?width=1280&height=720&seed={seed}&nologo=true&model=flux"
+        f"&referrer=cartoon-studio&client_id=cartoon-studio-prod"
+    )
     last_err = None
-    for attempt in range(3):
+    for attempt in range(8):
         try:
             resp = await client.get(url, timeout=httpx.Timeout(240.0))
             ctype = resp.headers.get("content-type", "")
             if ctype.startswith("image/"):
                 out_path.write_bytes(resp.content)
                 return
-            raise RuntimeError(f"الرد غير صورة: {ctype} {resp.text[:300]}")
+            if resp.status_code in (429, 503, 500, 502, 504):
+                retry_after = float(resp.headers.get("retry-after", "0") or 0)
+                wait = max(retry_after, 5 * (2 ** attempt))
+            else:
+                wait = 3
+            last_err = RuntimeError(f"الرد غير صورة (HTTP {resp.status_code}): {resp.text[:300]}")
+            await asyncio.sleep(min(wait, 90))
         except Exception as exc:
             last_err = exc
-            await asyncio.sleep(3)
+            await asyncio.sleep(min(5 * (2 ** attempt), 90))
     raise RuntimeError(f"فشل توليد الصورة عبر Pollinations: {last_err}")
 
 
@@ -256,7 +266,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
         job["pack_title"] = pack["title"]
         scenes = pack["pilot"]["scenes"]
         total = len(scenes)
-        sem = asyncio.Semaphore(2)
+        sem = asyncio.Semaphore(1 if not (IMAGE_PROVIDER == "stability" or STABILITY_API_KEY) else 2)
         job["phase"] = "توليد الصور والأصوات (سينمائي)"
         job["images"] = []
 

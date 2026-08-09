@@ -61,6 +61,19 @@ ghcr.io/<your-user>/cartoon-studio:latest
 | `AUDIO_DESIGN` | `1`/`0` تشغيل/إيقاف الموسيقى والمؤثرات |
 | `MOTION_ENGINE` | `1`/`0` تشغيل/إيقاف حركة الكاميرا |
 
+## الإنتاج على السحابة المجانية (بدون طاقة جهازك)
+مسار الإنتاج الكامل يعمل على **خوادم مجانية** منفصلة تمامًا عن جهازك — جهازك يعمل كجهاز تحكم فقط:
+
+- **GitHub Actions** (سحابة GitHub المجانية): من تبويب *Actions* → *produce-episode* → *Run workflow* → الصق قصتك أو اختر سلسلة → أنزل حزمة الـ ZIP (سيناريو + صور + صوت + فيديو).
+- **Google Colab** (سحابة جوجل المجانية): افتح `notebooks/Cartoon_Studio.ipynb` على colab.research.google.com و اضغط Run all — يعمل بنفس المسار على معالج جوجل وينزّل الناتج مباشرة.
+
+```
+python scripts/produce.py --story "قصة..." --video --music --motion --out output
+python scripts/produce.py --index 1 --video --out output        # سلسلة جاهزة
+```
+
+المشغّل `scripts/produce.py` هو نفس محرك الخادم (`server/pipeline.py`) يعمل لاسلكيًا (headless) على أي سحابة فيها Python + ffmpeg.
+
 ## البنية
 ```
 server/app.py          FastAPI + API الجوبات
@@ -74,5 +87,8 @@ packs.py               السلاسل الجاهزة
 universe.py            عالم مشترك
 web/                   الموقع الحي (واجهة + محرك متصفح)
 scripts/export_packs.py تصدير packs.json للواجهة
+scripts/produce.py     تشغيل الإنتاج الكامل على السحابة (headless)
+notebooks/             دفتر Colab للإنتاج على سحابة جوجل
 .github/workflows/pages.yml  نشر GitHub Pages
+.github/workflows/produce.yml  إنتاج على سحابة GitHub المجانية
 ```
