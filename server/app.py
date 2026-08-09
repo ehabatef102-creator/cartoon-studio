@@ -8,7 +8,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -44,8 +44,8 @@ def load_jobs():
 load_jobs()
 
 
-def require_admin(x_admin_token: str = Header(default="")):
-    if x_admin_token != ADMIN_PASSWORD:
+def require_admin(x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    if (x_admin_token or token) != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="كلمة المرور غير صحيحة")
     return True
 
@@ -88,8 +88,8 @@ async def login(request: Request):
 
 
 @app.get("/api/packs")
-def packs(x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+def packs(x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     data = []
     for i, title, genre, audience in list_packs():
         p = get_pack(index=i)
@@ -110,8 +110,8 @@ def packs(x_admin_token: str = Header(default="")):
 
 
 @app.get("/api/jobs")
-def jobs(token: str = Header(default="")):
-    require_admin(x_admin_token=token)
+def jobs(x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     items = []
     for job in JOBS.values():
         items.append(summary(job))
@@ -120,8 +120,8 @@ def jobs(token: str = Header(default="")):
 
 
 @app.post("/api/jobs")
-async def create_job(request: Request, x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+async def create_job(request: Request, x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     body = await request.json()
     index = body.get("index")
     idea = (body.get("idea") or "").strip()
@@ -196,8 +196,8 @@ def summary(job):
 
 
 @app.get("/api/jobs/{job_id}")
-def job_status(job_id: str, x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+def job_status(job_id: str, x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="المهمة غير موجودة")
@@ -205,8 +205,8 @@ def job_status(job_id: str, x_admin_token: str = Header(default="")):
 
 
 @app.get("/api/jobs/{job_id}/download")
-def download(job_id: str, x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+def download(job_id: str, x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="المهمة غير موجودة")
@@ -233,8 +233,8 @@ def download(job_id: str, x_admin_token: str = Header(default="")):
 
 
 @app.get("/api/jobs/{job_id}/asset")
-def asset(job_id: str, path: str, x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+def asset(job_id: str, path: str, x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="المهمة غير موجودة")
@@ -247,8 +247,8 @@ def asset(job_id: str, path: str, x_admin_token: str = Header(default="")):
 
 
 @app.delete("/api/jobs/{job_id}")
-def delete_job(job_id: str, x_admin_token: str = Header(default="")):
-    require_admin(x_admin_token=x_admin_token)
+def delete_job(job_id: str, x_admin_token: str = Header(default=""), token: str = Query(default="")):
+    require_admin(x_admin_token=x_admin_token, token=token)
     job = JOBS.pop(job_id, None)
     if not job:
         raise HTTPException(status_code=404, detail="المهمة غير موجودة")

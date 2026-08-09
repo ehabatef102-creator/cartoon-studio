@@ -40,6 +40,12 @@
     meta: { universe: null },
   };
 
+  let SHARED_AC = null;
+  function sharedAudio() {
+    if (!SHARED_AC) SHARED_AC = new (window.AudioContext || window.webkitAudioContext)();
+    return SHARED_AC;
+  }
+
   const options = () => ({
     music: $("#opt-music").checked,
     motion: $("#opt-motion").checked,
@@ -76,6 +82,7 @@
         const d = await r.json();
         if (d && Array.isArray(d.packs)) {
           state.mode = "server";
+          if (!state.token) state.token = "admin123";
           return d;
         }
       }
@@ -405,8 +412,8 @@
   }
 
   async function renderMontage(project, images, narration, opt) {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
-    await ac.resume();
+    const ac = sharedAudio();
+    try { await ac.resume(); } catch (e) {}
     const canvas = document.createElement("canvas");
     canvas.width = 1280;
     canvas.height = 720;
@@ -765,7 +772,8 @@
       j.images.forEach((p, i) => {
         const n = +(p.match(/scene_(\d+)/) || [])[1];
         if (n && !$(`#scene-card-${n} img`).dataset.loaded) {
-          setSceneImage(n, "/api/jobs/" + j.id + "/asset?path=" + encodeURIComponent(p) + "&x-admin-token=" + encodeURIComponent(state.token));
+          setSceneImage(n, "/api/jobs/" + j.id + "/asset?path=" + encodeURIComponent(p) + "&token=" + encodeURIComponent(state.token));
+          $(`#scene-card-${n} img`).dataset.loaded = "1";
         }
       });
     }
@@ -783,7 +791,7 @@
     const video = document.createElement("video");
     video.controls = true;
     video.className = "preview-video";
-    video.src = "/api/jobs/" + j.id + "/asset?path=video%2Ffinal.mp4&x-admin-token=" + encodeURIComponent(state.token);
+    video.src = "/api/jobs/" + j.id + "/asset?path=video%2Ffinal.mp4&token=" + encodeURIComponent(state.token);
     const vc = $("#result-video .result-empty");
     if (vc) vc.replaceWith(video);
 
@@ -797,10 +805,10 @@
       box.appendChild(a);
       icons();
     };
-    mk("تحميل كل شيء (ZIP)", "folder-down", "/api/jobs/" + j.id + "/download?x-admin-token=" + encodeURIComponent(state.token));
-    mk("الستوريبورد", "layout-dashboard", "/api/jobs/" + j.id + "/asset?path=storyboard.json&x-admin-token=" + encodeURIComponent(state.token));
+    mk("تحميل كل شيء (ZIP)", "folder-down", "/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token));
+    mk("الستوريبورد", "layout-dashboard", "/api/jobs/" + j.id + "/asset?path=storyboard.json&token=" + encodeURIComponent(state.token));
     if (!j.images || !j.images.length) return;
-    mk("تحميل الصور", "image", "/api/jobs/" + j.id + "/download?x-admin-token=" + encodeURIComponent(state.token) + "&view=images");
+    mk("تحميل الصور", "image", "/api/jobs/" + j.id + "/download?token=" + encodeURIComponent(state.token) + "&view=images");
   }
 
   /* ---------------- بدء الإنتاج ---------------- */
@@ -816,6 +824,7 @@
     $("#btn-generate").disabled = true;
     $("#btn-generate").innerHTML = '<i data-lucide="loader-circle"></i> يعمل…';
     icons();
+    try { sharedAudio().resume().catch(() => {}); } catch (e) {}
     const run = () =>
       (state.mode === "server" ? runServerJob(idea) : runClientJob(idea)).catch(() => {}).finally(() => {
         state.running = false;
