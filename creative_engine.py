@@ -145,6 +145,8 @@ def render_pilot_script(pack):
 
 
 def render_scene_brief(pack, scene):
+    from server import visual
+
     out = []
     out.append(f"# بريف المشهد {scene['num']} — {scene['title']}")
     out.append("")
@@ -152,6 +154,9 @@ def render_scene_brief(pack, scene):
     out.append(f"- **التوقيت:** {scene['timing']} (≈ {scene['seconds']} ثانية)")
     out.append(f"- **المكان:** {scene['location']}")
     out.append(f"- **المزاج:** {scene['mood']}")
+    out.append(f"- **قوس القصة (Beat):** {scene.get('beat', 'setup')} | **مستوى التوتر:** {scene.get('tension', 5)}/10")
+    cast = scene.get("cast") or [c["name"] for c in visual.extract_cast(pack, scene)]
+    out.append(f"- **الممثلون (Cast):** {('، '.join(cast)) if cast else '—'}")
     out.append("")
     out.append("## 1) وصف المشهد")
     out.append(scene["action"])
@@ -162,13 +167,21 @@ def render_scene_brief(pack, scene):
     out.append("**إرشادات برومبت:** احتفظ بنفس الأسلوب العام في كل المشاهد للاستمرارية، وثبّت ملامح الشخصيات "
                "من ملف البايبِل. لوحة سينمائية 2.39:1 (ما يعادل 1920×1080 أو أوسع)، تدرج ألوان دافئ، وإضاءة درامية.")
     out.append("")
+    shots = scene.get("shot") or visual.shot_plan(scene, scene.get("beat", "setup"))
+    out.append("## 2ب) الستوريبورد السينمائي (كيف تُصور)")
+    for i, s in enumerate(shots, 1):
+        out.append(f"- **لقطة {i}:** {s.get('framing')} · {s.get('angle')} · {s.get('movement')} · {s.get('lens')} · تركيز: {s.get('focus')}")
+    out.append("")
     out.append("## 3) الحوار")
     out.append(_fmt_dialogue(scene["dialogue"]))
     out.append("")
     out.append("## 4) التعليق الصوتي / النصوص الصوتية (TTS)")
     out.append(_fmt_tts(scene.get("tts"), scene))
     out.append("")
-    out.append("## 5) المؤثرات الصوتية والموسيقى (SFX)")
+    out.append("## 5) التصميم الصوتي (Sound Design)")
+    music = scene.get("music") or visual.music_score(scene.get("beat", "setup"), scene.get("mood", ""), scene["num"])
+    out.append(f"- **الموسيقى التصويرية:** {music.get('mode')} · شدّة {music.get('intensity')}/10 · إيقاع {music.get('tempo')} BPM · {', '.join(music.get('keywords', []))}")
+    out.append("- **المؤثرات الصوتية (SFX):**")
     out.append(_fmt_list(scene["sfx"]))
     out.append("")
     out.append("## 6) الكاميرا والمونتاج (CapCut / DaVinci Resolve)")
@@ -178,17 +191,25 @@ def render_scene_brief(pack, scene):
 
 
 def render_post_credit_brief(pack):
+    from server import visual
+
     pc = pack["post_credits"]
     out = []
     out.append(f"# بريف مشهد ما بعد الشارة — {pc['title']}")
     out.append("")
     out.append(f"**السلسلة:** {pack['title']} | **العالم:** {UNIVERSE['name']}")
+    cast = pc.get("cast") or [c["name"] for c in visual.extract_cast(pack, pc)]
+    out.append(f"**الممثلون (Cast):** {('، '.join(cast)) if cast else '—'}")
     out.append("")
     out.append("## 1) وصف المشهد")
     out.append(pc["description"])
     out.append("")
     out.append("## 2) برومبت الصورة السينمائي")
     out.append("> " + cinematic_prompt(pc["image_prompt"]))
+    out.append("")
+    shots = pc.get("shot") or visual.shot_plan(pc, "crossover")
+    for i, s in enumerate(shots, 1):
+        out.append(f"- **لقطة {i}:** {s.get('framing')} · {s.get('angle')} · {s.get('movement')} · {s.get('lens')}")
     out.append("")
     out.append("## 3) الحوار")
     out.append(_fmt_dialogue(pc["dialogue"]))
@@ -404,12 +425,15 @@ def render_and_write_pack(pack, base):
 
 
 def _apply_timings(pack):
+    from server import visual
+
     t = 0
     for scene in pack["pilot"]["scenes"]:
         secs = int(scene.get("seconds", 25))
         scene["seconds"] = secs
         scene["timing"] = f"{t // 60:02d}:{t % 60:02d} - {(t + secs) // 60:02d}:{(t + secs) % 60:02d}"
         t += secs
+    visual.enrich_pack(pack)
     return pack
 
 

@@ -72,7 +72,11 @@
       <div class="sub" style="margin-top:6px">لو كتبت فكرة، بتتجاهل اختيار السلسلة وتولّد من فكرتك مباشرة.</div>
       <div class="row" style="margin-top:14px">
         <input type="text" id="titleOverride" placeholder="عنوان مخصص (اختياري)">
-        <label class="chk"><input type="checkbox" id="renderVideo"> رندر فيديو mp4 (أبطأ)</label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="chk"><input type="checkbox" id="renderVideo" checked> رندر فيديو mp4 (أبطأ)</label>
+        <label class="chk"><input type="checkbox" id="audioDesign" checked> موسيقى تصويرية + مؤثرات</label>
+        <label class="chk"><input type="checkbox" id="motionEng" checked> حركة كاميرا سينمائية</label>
       </div>
       <div class="row" style="margin-top:14px">
         <button class="btn-primary" id="genBtn" onclick="generate()">توليد الحلقة</button>
@@ -150,7 +154,9 @@ function generate() {
   document.getElementById('genErr').textContent = '';
   const payload = {
     title: document.getElementById('titleOverride').value || null,
-    render_video: document.getElementById('renderVideo').checked
+    render_video: document.getElementById('renderVideo').checked,
+    audio_design: document.getElementById('audioDesign').checked,
+    motion: document.getElementById('motionEng').checked
   };
   if (idea) { payload.idea = idea; } else { payload.index = selected; }
   fetch('/api/jobs', {
@@ -212,6 +218,7 @@ function renderJobs(jobs) {
       body += `<div class="row" style="margin-top:8px">
         <a href="/api/jobs/${j.id}/download" class="btn-primary" style="text-decoration:none;padding:8px 14px;border-radius:8px">تنزيل ZIP</a>
         ${j.has_video ? `<a href="/api/jobs/${j.id}/asset?path=video/final.mp4" style="text-decoration:none;padding:8px 14px;background:#334155;border-radius:8px">الفيديو النهائي</a>` : ''}
+        <a href="/api/jobs/${j.id}/asset?path=storyboard.json" style="text-decoration:none;padding:8px 14px;background:#334155;border-radius:8px">الستوريبورد</a>
         <button class="btn-ghost" onclick="toggleImgs('${j.id}')">معاينة الصور</button></div>
         <div class="imgs hide" id="imgs-${j.id}"></div>`;
     }

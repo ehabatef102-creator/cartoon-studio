@@ -15,14 +15,15 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from creative_engine import cinematic_prompt
-from server import cards
+from server import cards, motion, sound_design, visual
 
 DEFAULT_VOICE = os.environ.get("DEFAULT_VOICE", "ar-EG-SalmaNeural")
 STABILITY_API_KEY = os.environ.get("STABILITY_API_KEY", "")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
 IMAGE_PROVIDER = os.environ.get("IMAGE_PROVIDER", "auto")
+AUDIO_DESIGN = os.environ.get("AUDIO_DESIGN", "1") == "1"
+MOTION_ENGINE = os.environ.get("MOTION_ENGINE", "1") == "1"
 
 TITLE_SECONDS = 4
 END_SECONDS = 4
@@ -197,6 +198,33 @@ def color_grade(input_video, out_mp4):
     ], timeout=900)
 
 
+def _build_scene_audio_design(tmp_dir, scene, voice_track, prefix=None, audio_design=True):
+    """يبني المكس السينمائي للمشهد (موسيقى + مؤثرات + ducking). يعود لمسار الصوت النهائي."""
+    if not audio_design:
+        return voice_track
+    name = prefix or f"scene_{scene['num']:02d}"
+    try:
+        music_wav = tmp_dir / f"{name}.music.wav"
+        sfx_wav = tmp_dir / f"{name}.sfx.wav"
+        music_info = scene.get("music") or {}
+        sound_design.synth_music(
+            music_wav, scene["seconds"],
+            mode=music_info.get("mode", "minor"),
+            intensity=music_info.get("intensity", 5),
+            tempo=music_info.get("tempo", 80),
+        )
+        sound_design.synth_sfx(sfx_wav, scene.get("sfx", []), scene["seconds"])
+        out_mix = tmp_dir / f"{name}.mix.m4a"
+        sound_design.build_scene_mix(FFMPEG(), voice_track, music_wav, sfx_wav, scene["seconds"], out_mix)
+        return out_mix
+    except Exception as exc:
+        try:
+            print(f"sound_design fallback: {exc!r}", file=sys.stderr)
+        except Exception:
+            pass
+        return voice_track
+
+
 def save_job(job):
     job_dir = job["_dir"]
     job_dir.joinpath("job.json").write_text(
@@ -205,7 +233,9 @@ def save_job(job):
     )
 
 
-async def run_job(job, workspace, pack, render_video):
+async def run_job(job, workspace, pack, render_video, audio_design=None, use_motion=None):
+    audio_design = AUDIO_DESIGN if audio_design is None else bool(audio_design)
+    motion_enabled = MOTION_ENGINE if use_motion is None else bool(use_motion)
     job["status"] = "running"
     job["progress"] = 0
     job["phase"] = "توليد السيناريو"
@@ -232,7 +262,7 @@ async def run_job(job, workspace, pack, render_video):
 
         async def generate_scene(prefix, image_prompt, dialogue, seed_off):
             image_path = images_dir / f"{prefix}"
-            image_name = await gen_image(client, cinematic_prompt(image_prompt), image_path, seed=job["seed"] + seed_off, sem=sem)
+            image_name = await gen_image(client, image_prompt, image_path, seed=job["seed"] + seed_off, sem=sem)
             job["images"].append(f"images/{image_name}")
             scene_voices = voices_dir / prefix
             scene_voices.mkdir(parents=True, exist_ok=True)
@@ -244,14 +274,21 @@ async def run_job(job, workspace, pack, render_video):
             for si, scene in enumerate(scenes):
                 job["scene"] = scene["num"]
                 save_job(job)
-                await generate_scene(f"scene_{scene['num']:02d}", scene["image_prompt"], scene["dialogue"], scene["num"])
+                prompt = visual.compose_scene_prompt(pack, scene)
+                await generate_scene(f"scene_{scene['num']:02d}", prompt, scene["dialogue"], scene["num"])
                 job["progress"] = int((si + 1) / total * 100)
                 save_job(job)
             if pack.get("post_credits"):
                 job["scene"] = "post-credit"
                 pc = pack["post_credits"]
-                await generate_scene("scene_08_post", pc["image_prompt"], pc["dialogue"], 99)
+                prompt = visual.compose_scene_prompt(pack, pc, beat="crossover")
+                await generate_scene("scene_08_post", prompt, pc["dialogue"], 99)
                 save_job(job)
+
+        sb = visual.storyboard(pack)
+        job_dir.joinpath("storyboard.json").write_text(
+            json.dumps(sb, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         if render_video:
             job["phase"] = "رندر الفيديو السينمائي (يستغرق عدة دقائق)"
@@ -280,23 +317,33 @@ async def run_job(job, workspace, pack, render_video):
 
             for i, scene in enumerate(scenes):
                 image_file = next(images_dir.glob(f"scene_{scene['num']:02d}.*"))
-                scene_audio = tmp_dir / f"scene_{scene['num']:02d}.m4a"
+                voice_track = tmp_dir / f"scene_{scene['num']:02d}.voice.m4a"
                 voice_files = sorted((voices_dir / f"scene_{scene['num']:02d}").glob("*.mp3"))
-                build_scene_audio(voice_files, scene_audio, scene["seconds"])
+                build_scene_audio(voice_files, voice_track, scene["seconds"])
+                scene_audio = _build_scene_audio_design(tmp_dir, scene, voice_track, audio_design=audio_design)
                 scene_video = tmp_dir / f"scene_{scene['num']:02d}.mp4"
-                zoom_in = (i % 2 == 0)
-                render_still_video(image_file, scene_audio, scene_video, scene["seconds"], zoom_in=zoom_in)
+                if motion_enabled:
+                    plan = motion.plan_motion(scene)
+                    motion.render_scene_clip(FFMPEG(), image_file, scene_audio, scene_video, scene["seconds"], plan)
+                else:
+                    zoom_in = (i % 2 == 0)
+                    render_still_video(image_file, scene_audio, scene_video, scene["seconds"], zoom_in=zoom_in)
                 video_parts.append(scene_video)
                 job["scene"] = scene["num"]
                 save_job(job)
 
             if pack.get("post_credits"):
                 post_image = next(images_dir.glob("scene_08_post.*"))
-                post_audio = tmp_dir / "post_credit.m4a"
+                post_voice = tmp_dir / "post_credit.voice.m4a"
                 voice_files = sorted((voices_dir / "scene_08_post").glob("*.mp3"))
-                build_scene_audio(voice_files, post_audio, POST_CREDIT_SECONDS)
+                build_scene_audio(voice_files, post_voice, POST_CREDIT_SECONDS)
+                post_audio = _build_scene_audio_design(tmp_dir, pack["post_credits"], post_voice, "post_credit", audio_design=audio_design)
                 post_video = tmp_dir / "post_credit.mp4"
-                render_still_video(post_image, post_audio, post_video, POST_CREDIT_SECONDS, zoom_in=True)
+                if motion_enabled:
+                    plan = motion.plan_motion(pack["post_credits"])
+                    motion.render_scene_clip(FFMPEG(), post_image, post_audio, post_video, POST_CREDIT_SECONDS, plan)
+                else:
+                    render_still_video(post_image, post_audio, post_video, POST_CREDIT_SECONDS, zoom_in=True)
                 video_parts.append(post_video)
 
             end_video = tmp_dir / "end.mp4"

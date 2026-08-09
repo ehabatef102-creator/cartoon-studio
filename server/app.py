@@ -135,6 +135,8 @@ async def create_job(request: Request, x_admin_token: str = Header(default="")):
         "source": pack.get("_source", "template"),
         "title_override": body.get("title"),
         "render_video": bool(body.get("render_video", False)),
+        "audio_design": body.get("audio_design"),
+        "motion": body.get("motion"),
         "seed": random.randint(1, 10**9),
         "created": _now(),
     }
@@ -142,7 +144,12 @@ async def create_job(request: Request, x_admin_token: str = Header(default="")):
     job["_dir"].mkdir(parents=True, exist_ok=True)
     JOBS[job["id"]] = job
     pipeline.save_job(job)
-    asyncio.create_task(pipeline.run_job(job, WORKSPACE, pack, job["render_video"]))
+    asyncio.create_task(
+        pipeline.run_job(
+            job, WORKSPACE, pack, job["render_video"],
+            audio_design=job.get("audio_design"), use_motion=job.get("motion"),
+        )
+    )
     return {"id": job["id"]}
 
 
@@ -163,6 +170,8 @@ def summary(job):
         "pack_title": job["pack_title"] or job["title_override"],
         "source": job.get("source", "template"),
         "render_video": job["render_video"],
+        "audio_design": job.get("audio_design"),
+        "motion": job.get("motion"),
         "created": job["created"],
         "has_video": (job["_dir"] / "video" / "final.mp4").exists(),
         "has_images": (job["_dir"] / "images").exists(),

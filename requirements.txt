@@ -6,3 +6,4 @@ pillow
 arabic-reshaper
 python-bidi
 imageio-ffmpeg
+numpy
