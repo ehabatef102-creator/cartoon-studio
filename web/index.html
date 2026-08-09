@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>استوديو الكرتون — من فكرة إلى حلقة متكاملة</title>
+<meta name="description" content="اكتب قصتك واحصل على مشاهد سينمائية، تعليق صوتي، موسيقى ومونتاج جاهز — بأدوات مجانية مفتوحة المصدر.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Changa:wght@400;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div class="film-strip" aria-hidden="true"></div>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark"><i data-lucide="clapperboard"></i></span>
+      <span class="brand-name">استوديو <em>الكرتون</em></span>
+    </a>
+    <nav class="site-nav" aria-label="التنقل الرئيسي">
+      <a href="#how">كيف يعمل</a>
+      <a href="#packs">المكتبة</a>
+      <a href="#studio">اصنع حلقتك</a>
+    </nav>
+    <div class="header-actions">
+      <span id="mode-badge" class="mode-badge is-loading" title="وضع التشغيل"><i data-lucide="loader-circle"></i><span>جارٍ الفحص…</span></span>
+      <a href="#studio" class="btn btn-gold btn-sm">ابدأ الآن</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow"><i data-lucide="wand-2"></i> استوديو إنتاج كرتوني — عربي · أدوات مفتوحة المصدر</p>
+        <h1 class="hero-title">القصة اللي في <span class="hl-gold">راسك</span>…<br>تصير <span class="hl-underline">حلقة كرتونية</span> كاملة</h1>
+        <p class="hero-sub">الصق قصتك أو اختر من المكتبة. المحرك يصمم المشاهد السينمائية، يرسم الشخصيات بثبات، يولّد التعليق الصوتي والموسيقى، ثم يجمّع لك مونتاجًا جاهزًا للنشر.</p>
+        <div class="hero-cta">
+          <a href="#studio" class="btn btn-gold btn-lg">ابدأ صناعة حلقتك <i data-lucide="arrow-left"></i></a>
+          <a href="#how" class="btn btn-ghost btn-lg">شوف كيف يعمل</a>
+        </div>
+        <dl class="hero-stats">
+          <div><dt>3</dt><dd>سلسلة جاهزة في المكتبة</dd></div>
+          <div><dt>7+</dt><dd>مشهد سينمائي لكل حلقة</dd></div>
+          <div><dt>100%</dt><dd>أدوات مجانية ومفتوحة</dd></div>
+        </dl>
+      </div>
+
+      <div class="hero-stage">
+        <div class="glow glow-teal" aria-hidden="true"></div>
+        <div class="glow glow-gold" aria-hidden="true"></div>
+        <figure class="slate-card" id="hero-slate">
+          <div class="slate-top">
+            <span class="slate-legend">استوديو الكرتون</span>
+            <span class="slate-scene">SC 01</span>
+          </div>
+          <div class="slate-media">
+            <img id="hero-slate-img" alt="مشهد من سلسلة مدينة السحاب" src="">
+            <div class="slate-overlay"></div>
+            <span class="slate-tag"><i data-lucide="film"></i> TAKE 1</span>
+          </div>
+          <figcaption class="slate-caption">
+            <strong id="hero-slate-title">مدينة السحاب</strong>
+            <span id="hero-slate-sub">ألوان السماء المفقودة — الحلقة التجريبية</span>
+          </figcaption>
+        </figure>
+        <div class="stage-note" aria-hidden="true">
+          <span>مشاهد</span><i data-lucide="image"></i>
+          <span>أصوات</span><i data-lucide="mic"></i>
+          <span>مونتاج</span><i data-lucide="scissors"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>مدينة السحاب</span><i></i>
+      <span>مكتبة الأحلام</span><i></i>
+      <span>وادي بوت</span><i></i>
+      <span>مشهد بعد الشارة مثل مارفل</span><i></i>
+      <span>عالم أفق السحاب المشترك</span><i></i>
+      <span>مدينة السحاب</span><i></i>
+      <span>مكتبة الأحلام</span><i></i>
+      <span>وادي بوت</span><i></i>
+      <span>مشهد بعد الشارة مثل مارفل</span><i></i>
+      <span>عالم أفق السحاب المشترك</span><i></i>
+    </div>
+  </div>
+
+  <section class="section" id="how">
+    <div class="container">
+      <header class="section-head split">
+        <div>
+          <p class="eyebrow">خط الإنتاج</p>
+          <h2>من نص لأخم خمس خطوات… <span class="hl-gold">ولا خطوة يدوية</span></h2>
+        </div>
+        <p class="section-note">كل مرحلة مبنية على أدوات مجانية مفتوحة المصدر، والمحرك شغال في الخلفية.</p>
+      </header>
+
+      <ol class="steps">
+        <li class="step" style="--n:1">
+          <span class="step-icon"><i data-lucide="pen-line"></i></span>
+          <h3>تكتب الفكرة</h3>
+          <p>قصتك أو فكرتك في سطرين، أو قالب جاهز من المكتبة بسيناريو كامل.</p>
+        </li>
+        <li class="step" style="--n:2">
+          <span class="step-icon"><i data-lucide="image"></i></span>
+          <h3>مشاهد سينمائية</h3>
+          <p>برومبتات إخراجية 2.39:1 بإضاءة درامية وشخصيات متسقة عبر كل المشاهد.</p>
+        </li>
+        <li class="step" style="--n:3">
+          <span class="step-icon"><i data-lucide="mic"></i></span>
+          <h3>أصوات وموسيقى</h3>
+          <p>تعليق صوتي عربي، موسيقى تصويرية تولّد حسب مشاعر كل مشهد، ومؤثرات صوتية.</p>
+        </li>
+        <li class="step" style="--n:4">
+          <span class="step-icon"><i data-lucide="scissors"></i></span>
+          <h3>مونتاج الفيديو</h3>
+          <p>حركة كاميرا Ken Burns، انتقالات، ترجمة الحوار — تخرج بملف فيديو جاهز.</p>
+        </li>
+        <li class="step step-cta" style="--n:5">
+          <span class="step-icon"><i data-lucide="download"></i></span>
+          <h3>تحميل ونشر</h3>
+          <p>الصور، الصوت، والملف النهائي — كل حاجة جاهزة للرفع على يوتيوب.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="packs">
+    <div class="container">
+      <header class="section-head split">
+        <div>
+          <p class="eyebrow">مكتبة الاستوديو</p>
+          <h2>ثلاث سلاسل أصلية… <span class="hl-underline">جاهزة للتجربة</span></h2>
+        </div>
+        <p class="section-note">اضغط على أي سلسلة وابدأ إنتاج حلقتها التجريبية فورًا.</p>
+      </header>
+      <div id="packs-grid" class="packs-grid"><!-- rendered by app.js --></div>
+    </div>
+  </section>
+
+  <section class="section studio" id="studio">
+    <div class="container">
+      <header class="section-head center">
+        <p class="eyebrow">الاستوديو</p>
+        <h2>اصنع حلقتك <span class="hl-gold">الآن</span></h2>
+        <p class="section-note">اختر قالبًا من المكتبة أو الصق فكرتك — ثم اضغط «ابدأ الإنتاج».</p>
+      </header>
+
+      <div class="studio-panel">
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" role="tab" data-tab="template" aria-selected="true">ابدأ من قالب</button>
+          <button class="tab" role="tab" data-tab="custom" aria-selected="false">الصق قصتك</button>
+        </div>
+
+        <div class="tab-pane" data-pane="template">
+          <div id="pack-picker" class="pack-picker"><!-- rendered by app.js --></div>
+        </div>
+
+        <div class="tab-pane is-hidden" data-pane="custom">
+          <label class="field-label" for="idea">قصة الحلقة / الفكرة</label>
+          <textarea id="idea" rows="6" placeholder="اكتب قصتك هنا… مثلًا: دبابة نينجا خضراء اسمها فول تكتشف أنها تقدر تتحول لأي مركبة، وبتحاول تنقذ المدينة من لص الألعاب."></textarea>
+          <p class="field-hint"><i data-lucide="info"></i> في وضع المتصفح نقسم قصتك تلقائيًا إلى مشاهد ونولّد لها صورًا ومونتاجًا. في وضع الخادم يكتب المحرك سيناريو كاملًا بحبكة وشخصيات.</p>
+        </div>
+
+        <div class="options-row">
+          <label class="opt">
+            <input type="checkbox" id="opt-music" checked>
+            <span>موسيقى تصويرية + مؤثرات</span>
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="opt-motion" checked>
+            <span>حركة كاميرا سينمائية</span>
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="opt-tts" checked>
+            <span>تعليق صوتي</span>
+          </label>
+          <label class="opt opt-slider">
+            <span>مدة المشهد في المونتاج: <b id="scene-sec-label">8 ثوانٍ</b></span>
+            <input type="range" id="scene-sec" min="3" max="12" step="1" value="8">
+          </label>
+        </div>
+
+        <div class="studio-actions">
+          <button id="btn-generate" class="btn btn-gold btn-lg">
+            <i data-lucide="play"></i> ابدأ الإنتاج
+          </button>
+          <button id="btn-settings" class="btn btn-ghost" title="إعدادات الخادم (كلمة المرور)">
+            <i data-lucide="settings-2"></i>
+          </button>
+        </div>
+        <p id="form-msg" class="form-msg is-hidden"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt is-hidden" id="output">
+    <div class="container">
+      <header class="section-head split">
+        <div>
+          <p class="eyebrow">الإنتاج</p>
+          <h2 id="output-title">حلقتك قيد التجهيز</h2>
+        </div>
+        <p class="section-note" id="output-sub">اتبع الخطوات أدناه</p>
+      </header>
+
+      <ol class="phases" id="phases">
+        <li class="phase" data-phase="writing"><i data-lucide="pen-line"></i><span>كتابة السيناريو</span></li>
+        <li class="phase" data-phase="images"><i data-lucide="image"></i><span>توليد المشاهد</span></li>
+        <li class="phase" data-phase="audio"><i data-lucide="mic"></i><span>الصوت والموسيقى</span></li>
+        <li class="phase" data-phase="montage"><i data-lucide="scissors"></i><span>المونتاج</span></li>
+        <li class="phase" data-phase="done"><i data-lucide="check-circle-2"></i><span>جاهز</span></li>
+      </ol>
+
+      <div class="progress-bar"><span id="progress-fill" style="width:0%"></span></div>
+      <p id="progress-text" class="progress-text">البدء…</p>
+
+      <div class="scenes-wrap">
+        <h3 class="scenes-heading">مشاهد الحلقة</h3>
+        <div id="scenes-grid" class="scenes-grid"><!-- rendered by app.js --></div>
+      </div>
+
+      <div class="results-row">
+        <div class="result-card" id="result-video">
+          <div class="result-card-head"><i data-lucide="clapperboard"></i><span>مونتاج الفيديو</span></div>
+          <div class="result-empty">الفيديو بيتجهّز هنا…</div>
+        </div>
+        <div class="result-card">
+          <div class="result-card-head"><i data-lucide="folder-down"></i><span>ملفات الحلقة</span></div>
+          <div class="result-actions" id="result-actions"></div>
+          <p class="field-hint">حمل الصور كأرشيف، استمع لكل مشهد، أو حمل الفيديو النهائي.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <span class="brand-mark"><i data-lucide="clapperboard"></i></span>
+      <p class="footer-tag">استوديو الكرتون — محرك إنتاج كرتوني عربي بأدوات مجانية مفتوحة المصدر.</p>
+    </div>
+    <ul class="footer-links">
+      <li><i data-lucide="github"></i> <a href="https://github.com/ehabatef102-creator/cartoon-studio" target="_blank" rel="noopener">كود المصدر (GitHub)</a></li>
+      <li><i data-lucide="image"></i> الصور: Pollinations</li>
+      <li><i data-lucide="audio-lines"></i> الصوت: Edge TTS / Web Speech</li>
+    </ul>
+    <p class="footer-note">شغّلت كلمة «قابلة للتعديل» على أعلى مستوى: كل المحتوى مولّد بواسطة الذكاء الاصطناعي — تحقق من الحقوق قبل النشر التجاري.</p>
+  </div>
+</footer>
+
+<div class="modal-backdrop is-hidden" id="settings-modal">
+  <div class="modal">
+    <button class="modal-close" id="settings-close" aria-label="إغلاق"><i data-lucide="x"></i></button>
+    <h3>إعدادات الخادم</h3>
+    <p class="field-hint">في وضع الخادم (المستضاف ذاتيًا) يمكن حماية لوحة التحكم بكلمة مرور. مخزّنة محليًا فقط.</p>
+    <label class="field-label" for="admin-pass">كلمة المرور</label>
+    <input type="password" id="admin-pass" placeholder="admin123">
+    <div class="modal-actions">
+      <button class="btn btn-gold" id="settings-save">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

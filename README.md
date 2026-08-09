@@ -20,6 +20,17 @@
 
 مفاتيح إضافية في الواجهة: **موسيقى تصويرية + مؤثرات** و**حركة كاميرا سينمائية** (قابلة للتعطيل لكل مهمة).
 
+## الموقع الحي (GitHub Pages)
+واجهة استوديو احترافية بالعربية تُنشر تلقائيًا على GitHub Pages عند كل دفع إلى `main`:
+```
+https://<your-user>.github.io/cartoon-studio/
+```
+تعمل في **وضعين** تلقائيًا:
+- **وضع المتصفح** (على Pages): صور عبر Pollinations + موسيقى مولّدة (WebAudio) + مونتاج حقيقي بالمتغيّر المتصفح (Canvas + MediaRecorder → WebM) + استماع بالعربية (Google TTS). تعمل بدون أي خادم.
+- **وضع الخادم** (عند تشغيل uvicorn): نفس الواجهة، لكن الخادم يكتب سيناريو استوديو كامل (LLM) ويولّد صورًا وصوت edge-tts وفيديو mp4 عبر ffmpeg.
+
+`web/packs.json` يولّد آليًا من `packs.py` عبر `scripts/export_packs.py` في workflow النشر.
+
 ## التشغيل المحلي
 ```powershell
 pip install -r requirements.txt
@@ -61,4 +72,7 @@ server/llm.py          تحويل الفكرة لسيناريو استوديو
 creative_engine.py     باك الإنتاج (سيناريو/بريفات/مواد)
 packs.py               السلاسل الجاهزة
 universe.py            عالم مشترك
+web/                   الموقع الحي (واجهة + محرك متصفح)
+scripts/export_packs.py تصدير packs.json للواجهة
+.github/workflows/pages.yml  نشر GitHub Pages
 ```

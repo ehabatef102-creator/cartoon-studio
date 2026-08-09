@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -60,7 +61,22 @@ def health():
 
 @app.get("/", response_class=FileResponse)
 def index():
+    web_index = ROOT / "web" / "index.html"
+    if web_index.exists():
+        return FileResponse(web_index)
     return FileResponse(Path(__file__).resolve().parent / "index.html")
+
+
+@app.get("/packs.json", response_class=FileResponse)
+def packs_json():
+    f = ROOT / "web" / "packs.json"
+    if not f.exists():
+        raise HTTPException(status_code=404, detail="غير متاح")
+    return FileResponse(f)
+
+
+if (ROOT / "web" / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=ROOT / "web" / "assets"), name="assets")
 
 
 @app.post("/api/login")
