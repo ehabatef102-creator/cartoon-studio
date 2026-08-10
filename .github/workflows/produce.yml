@@ -76,6 +76,10 @@ jobs:
 
       - name: Run production on cloud
         env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          POLLINATIONS_TOKEN: ${{ secrets.POLLINATIONS_TOKEN }}
           IDX: ${{ github.event.inputs.index }}
           VIDEO: ${{ fromJSON(github.event.inputs.video) && '--video' || '' }}
           MUSIC: ${{ fromJSON(github.event.inputs.music) && '--music' || '' }}

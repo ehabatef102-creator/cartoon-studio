@@ -21,6 +21,7 @@ DEFAULT_VOICE = os.environ.get("DEFAULT_VOICE", "ar-EG-SalmaNeural")
 STABILITY_API_KEY = os.environ.get("STABILITY_API_KEY", "")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+POLLINATIONS_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "")
 IMAGE_PROVIDER = os.environ.get("IMAGE_PROVIDER", "auto")
 AUDIO_DESIGN = os.environ.get("AUDIO_DESIGN", "1") == "1"
 MOTION_ENGINE = os.environ.get("MOTION_ENGINE", "1") == "1"
@@ -69,10 +70,11 @@ async def _pollinations_image(client, prompt, out_path, seed):
         f"?width=1920&height=1080&seed={seed}&nologo=true&model=flux"
         f"&referrer=cartoon-studio&client_id=cartoon-studio-prod"
     )
+    headers = {"Authorization": f"Bearer {POLLINATIONS_TOKEN}"} if POLLINATIONS_TOKEN else {}
     last_err = None
     for attempt in range(8):
         try:
-            resp = await client.get(url, timeout=httpx.Timeout(240.0))
+            resp = await client.get(url, headers=headers, timeout=httpx.Timeout(240.0))
             ctype = resp.headers.get("content-type", "")
             if ctype.startswith("image/"):
                 out_path.write_bytes(resp.content)
