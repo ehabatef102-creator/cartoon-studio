@@ -25,6 +25,7 @@ POLLINATIONS_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "")
 IMAGE_PROVIDER = os.environ.get("IMAGE_PROVIDER", "auto")
 AUDIO_DESIGN = os.environ.get("AUDIO_DESIGN", "1") == "1"
 MOTION_ENGINE = os.environ.get("MOTION_ENGINE", "1") == "1"
+COMFY_URL = os.environ.get("COMFY_URL", "").strip()
 
 TITLE_SECONDS = 4
 END_SECONDS = 4
@@ -114,10 +115,18 @@ def _detect_image_ext(data):
     return ".jpg"
 
 
-async def gen_image(client, prompt, out_path, seed, sem):
+def comfy_active():
+    return IMAGE_PROVIDER == "comfy" and bool(COMFY_URL)
+
+
+async def gen_image(client, prompt, out_path, seed, sem, ref_path=None, beat=None):
     async with sem:
         tmp = out_path.with_suffix(".tmp")
-        if IMAGE_PROVIDER == "stability" or (IMAGE_PROVIDER == "auto" and STABILITY_API_KEY):
+        if comfy_active():
+            from server import comfy
+
+            await comfy.generate_scene_image(prompt, tmp, seed, ref_path=ref_path, beat=beat)
+        elif IMAGE_PROVIDER == "stability" or (IMAGE_PROVIDER == "auto" and STABILITY_API_KEY):
             await _stability_image(client, prompt, tmp)
         else:
             await _pollinations_image(client, prompt, tmp, seed)
@@ -278,13 +287,23 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
         job["pack_title"] = pack["title"]
         scenes = pack["pilot"]["scenes"]
         total = len(scenes)
-        sem = asyncio.Semaphore(1 if not (IMAGE_PROVIDER == "stability" or STABILITY_API_KEY) else 2)
+        sem = asyncio.Semaphore(1 if comfy_active() else (2 if (IMAGE_PROVIDER == "stability" or STABILITY_API_KEY) else 1))
         job["phase"] = "توليد الصور والأصوات (سينمائي)"
         job["images"] = []
 
-        async def generate_scene(prefix, image_prompt, dialogue, seed_off):
+        async def generate_scene(prefix, image_prompt, dialogue, seed_off, scene=None):
             image_path = images_dir / f"{prefix}"
-            image_name = await gen_image(client, image_prompt, image_path, seed=job["seed"] + seed_off, sem=sem)
+            ref_path = None
+            if comfy_active() and scene:
+                cast = scene.get("cast") or [c["name"] for c in visual.extract_cast(pack, scene)]
+                for ci, ch in enumerate(pack.get("characters", [])):
+                    if ch.get("name") in cast:
+                        ref_path = job_dir / "refs" / f"char_{ci:02d}.png"
+                        if not ref_path.exists():
+                            ref_path = None
+                        break
+            image_name = await gen_image(client, image_prompt, image_path, seed=job["seed"] + seed_off, sem=sem,
+                                         ref_path=ref_path, beat=(scene or {}).get("beat"))
             job["images"].append(f"images/{image_name}")
             scene_voices = voices_dir / prefix
             scene_voices.mkdir(parents=True, exist_ok=True)
@@ -292,19 +311,36 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                 voice_path = scene_voices / f"{li + 1:02d}_{speaker}.mp3"
                 await gen_voice(client, text, voice_path, voice=voice_for_speaker(pack, speaker))
 
+        if comfy_active():
+            job["phase"] = "توليد شيتات الشخصيات (SDXL)"
+            save_job(job)
+            from server import comfy
+
+            refs_dir = job_dir / "refs"
+            refs_dir.mkdir(parents=True, exist_ok=True)
+            for ci, ch in enumerate(pack.get("characters", [])):
+                design = (ch.get("design_prompt") or "").strip()
+                if not design:
+                    continue
+                sheet_path = refs_dir / f"char_{ci:02d}.png"
+                if not sheet_path.exists():
+                    await comfy.generate_character_sheet(design, sheet_path, job["seed"] + ci)
+            job["character_sheets"] = len(list(refs_dir.glob("*.png")))
+            save_job(job)
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
             for si, scene in enumerate(scenes):
                 job["scene"] = scene["num"]
                 save_job(job)
                 prompt = visual.compose_scene_prompt(pack, scene)
-                await generate_scene(f"scene_{scene['num']:02d}", prompt, scene["dialogue"], scene["num"])
+                await generate_scene(f"scene_{scene['num']:02d}", prompt, scene["dialogue"], scene["num"], scene=scene)
                 job["progress"] = int((si + 1) / total * 100)
                 save_job(job)
             if pack.get("post_credits"):
                 job["scene"] = "post-credit"
                 pc = pack["post_credits"]
                 prompt = visual.compose_scene_prompt(pack, pc, beat="crossover")
-                await generate_scene("scene_08_post", prompt, pc["dialogue"], 99)
+                await generate_scene("scene_08_post", prompt, pc["dialogue"], 99, scene=pc)
                 save_job(job)
 
         sb = visual.storyboard(pack)

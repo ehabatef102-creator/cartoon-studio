@@ -39,6 +39,21 @@ on:
         required: false
         type: boolean
         default: true
+      comfy_url:
+        description: "رابط خادم ComfyUI (من notebooks/ComfyUI_Cloud.ipynb) — اتركه فارغًا للـ Pollinations المجاني"
+        required: false
+        type: string
+        default: ""
+      comfy_ckpt:
+        description: "اسم checkpoint في ComfyUI (اختياري — يُكتشف تلقائيًا)"
+        required: false
+        type: string
+        default: ""
+      comfy_steps:
+        description: "خطوات KSampler (جودة أعلى = أبطأ)"
+        required: false
+        type: string
+        default: "32"
 
 permissions:
   contents: read
@@ -46,7 +61,7 @@ permissions:
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -80,6 +95,10 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           POLLINATIONS_TOKEN: ${{ secrets.POLLINATIONS_TOKEN }}
+          IMAGE_PROVIDER: ${{ github.event.inputs.comfy_url != '' && 'comfy' || 'auto' }}
+          COMFY_URL: ${{ github.event.inputs.comfy_url }}
+          COMFY_CKPT: ${{ github.event.inputs.comfy_ckpt }}
+          COMFY_STEPS: ${{ github.event.inputs.comfy_steps }}
           IDX: ${{ github.event.inputs.index }}
           VIDEO: ${{ fromJSON(github.event.inputs.video) && '--video' || '' }}
           MUSIC: ${{ fromJSON(github.event.inputs.music) && '--music' || '' }}

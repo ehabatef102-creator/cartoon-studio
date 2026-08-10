@@ -77,7 +77,11 @@ ghcr.io/<your-user>/cartoon-studio:latest
 | المتغير | الفائدة |
 |---|---|
 | `GROQ_API_KEY` | سيناريو مخصص 100% من الفكرة (مجاني من console.groq.com) |
-| `STABILITY_API_KEY` | صور أدق |
+| `STABILITY_API_KEY` | صور أدق (Stability) |
+| `IMAGE_PROVIDER` | `auto` (افتراضي) / `stability` / `comfy` |
+| `COMFY_URL` | رابط خادم ComfyUI (الصور السينمائية) — شغّله مجانًا عبر `notebooks/ComfyUI_Cloud.ipynb` |
+| `COMFY_CKPT` | اسم checkpoint في ComfyUI (يُكتشف تلقائيًا لو تركه فارغًا) |
+| `COMFY_STEPS` | خطوات KSampler الافتراضية `32` |
 | `ELEVENLABS_API_KEY` | أصوات عاطفية |
 | `ADMIN_PASSWORD` | كلمة مرور لوحة التحكم |
 | `AUDIO_DESIGN` | `1`/`0` تشغيل/إيقاف الموسيقى والمؤثرات |
@@ -86,8 +90,9 @@ ghcr.io/<your-user>/cartoon-studio:latest
 ## الإنتاج على السحابة المجانية (بدون طاقة جهازك)
 مسار الإنتاج الكامل يعمل على **خوادم مجانية** منفصلة تمامًا عن جهازك — جهازك يعمل كجهاز تحكم فقط:
 
-- **GitHub Actions** (سحابة GitHub المجانية): من تبويب *Actions* → *produce-episode* → *Run workflow* → الصق قصتك أو اختر سلسلة → أنزل حزمة الـ ZIP (سيناريو + صور + صوت + فيديو).
+- **GitHub Actions** (سحابة GitHub المجانية): من تبويب *Actions* → *produce-episode* → *Run workflow* → الصق قصتك أو اختر سلسلة → أنزل حزمة الـ ZIP (سيناريو + صور + صوت + فيديو). وعند ملء حقل *ComfyUI URL* تُنتج الصور السينمائية عبر خادمك السحابي (SDXL + OpenPose + IP-Adapter) بدل Pollinations.
 - **Google Colab** (سحابة جوجل المجانية): افتح `notebooks/Cartoon_Studio.ipynb` على colab.research.google.com و اضغط Run all — يعمل بنفس المسار على معالج جوجل وينزّل الناتج مباشرة.
+- **صور سينمائية (ComfyUI)**: افتح `notebooks/ComfyUI_Cloud.ipynb` على Colab (Runtime → T4 GPU) وشغّله — يحمّل SDXL + ControlNet OpenPose + IP-Adapter مجانًا ويعطيك رابطًا (cloudflared). ضع الرابط في `COMFY_URL` و `IMAGE_PROVIDER=comfy` ليحافظ الخادم على هوية الشخصية ووضعيتها في كل لقطة.
 
 ```
 python scripts/produce.py --story "قصة..." --video --music --motion --out output
@@ -104,6 +109,7 @@ server/visual.py       الهوية البصرية + الستوريبورد
 server/motion.py       حركة الكاميرا السينمائية
 server/sound_design.py موسيقى ومؤثرات ومكس الصوت
 server/llm.py          تحويل الفكرة لسيناريو استوديو
+server/comfy.py        محرك الصور السينمائي عبر ComfyUI (SDXL + OpenPose + IP-Adapter)
 creative_engine.py     باك الإنتاج (سيناريو/بريفات/مواد)
 packs.py               السلاسل الجاهزة
 universe.py            عالم مشترك
