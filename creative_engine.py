@@ -446,21 +446,60 @@ def _idea_title(idea):
     return "سلسلة مخصصة"
 
 
-CHARACTER_VOICE_POOL = [
-    "ar-EG-ShakirNeural", "ar-SA-HamedNeural", "ar-EG-SalmaNeural",
-    "ar-SA-ZariyahNeural", "ar-AE-HamdanNeural", "ar-SY-AmanyNeural",
-    "ar-AE-FatimaNeural", "ar-EG-SalmaNeural",
+_FEMALE_VOICES = [
+    "ar-EG-SalmaNeural", "ar-SA-ZariyahNeural", "ar-SY-AmanyNeural", "ar-AE-FatimaNeural",
 ]
+_MALE_VOICES = [
+    "ar-EG-ShakirNeural", "ar-SA-HamedNeural", "ar-AE-HamdanNeural",
+]
+
+_FEMALE_GENDER_WORDS = (
+    "أنثى", "انثى", "فتاة", "فتاه", "بنت", "صبية", "امرأة", "امراه", "سيدة",
+    "جدة", "عمة", "خالة", "طفلة", "أم ", "ام ", "ملكة", "ممرضة", "معلمة", "مذيعة",
+)
+_MALE_GENDER_WORDS = (
+    "ذكر", "فتى", "ولد", "صبي", "صبى", "رجل", "رجال", "سيد", "جد",
+    "عم ", "طفل", "أب ", "اب ", "ملك", "شاب", "طبيب", "مدرس",
+)
+_FEMALE_NAMES = (
+    "ليلى", "سارة", "نورة", "مريم", "فاطمة", "زينب", "حنان", "سلمى", "لينا",
+    "مروة", "ياسمين", "نور", "غادة", "شيماء", "هند", "دينا", "ريما", "أمل", "امل", "منى",
+)
+_MALE_NAMES = (
+    "أحمد", "احمد", "محمد", "عمر", "خالد", "حسن", "حسين", "يوسف", "كريم",
+    "طارق", "سامي", "سامى", "علي", "على", "مصطفى", "هشام", "زياد", "محمود",
+)
+
+
+def _guess_gender(ch):
+    """تخمين جنس الشخصية من اسمها/دورها/وصفها لاختيار صوت edge-tts مناسب."""
+    text = " ".join(str(ch.get(k, "")) for k in ("name", "role", "desc"))
+    for w in _FEMALE_GENDER_WORDS:
+        if w in text:
+            return "female"
+    for w in _MALE_GENDER_WORDS:
+        if w in text:
+            return "male"
+    name = ch.get("name", "").strip()
+    if name in _FEMALE_NAMES or name in _MALE_NAMES:
+        return "female" if name in _FEMALE_NAMES else "male"
+    if name.endswith(("ة", "اء", "ى", "يا")):
+        return "female"
+    return "male"
 
 
 def _assign_voices(pack):
-    """يضمن لكل شخصية صوت edge-tts عربي (من المخرج أو تلقائيًا من المجموعة)."""
-    pool = list(CHARACTER_VOICE_POOL)
-    idx = 0
+    """يضمن لكل شخصية صوت edge-tts عربي مناسب لجنسها (مع احترام الصوت المحدد يدويًا)."""
+    fi = mi = 0
     for ch in pack.get("characters", []):
-        if not ch.get("voice"):
-            ch["voice"] = pool[idx % len(pool)]
-            idx += 1
+        if ch.get("voice"):
+            continue
+        if _guess_gender(ch) == "female":
+            ch["voice"] = _FEMALE_VOICES[fi % len(_FEMALE_VOICES)]
+            fi += 1
+        else:
+            ch["voice"] = _MALE_VOICES[mi % len(_MALE_VOICES)]
+            mi += 1
     return pack
 
 
