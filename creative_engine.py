@@ -438,10 +438,136 @@ def _apply_timings(pack):
 
 
 def _idea_title(idea):
-    first = next((ln.strip() for ln in idea.splitlines() if ln.strip()), "")
-    if first:
-        return first[:50]
+    for ln in idea.splitlines():
+        s = ln.strip().lstrip("-*•").strip()
+        if not s or s in ("الفكرة:", "الفكرة", "القصة:", "القصة", "الأحداث:", "الأحداث", "الشخصيات:", "الشخصيات"):
+            continue
+        return s[:50]
     return "سلسلة مخصصة"
+
+
+CHARACTER_VOICE_POOL = [
+    "ar-EG-ShakirNeural", "ar-SA-HamedNeural", "ar-EG-SalmaNeural",
+    "ar-SA-ZariyahNeural", "ar-AE-HamdanNeural", "ar-SY-AmanyNeural",
+    "ar-AE-FatimaNeural", "ar-EG-SalmaNeural",
+]
+
+
+def _assign_voices(pack):
+    """يضمن لكل شخصية صوت edge-tts عربي (من المخرج أو تلقائيًا من المجموعة)."""
+    pool = list(CHARACTER_VOICE_POOL)
+    idx = 0
+    for ch in pack.get("characters", []):
+        if not ch.get("voice"):
+            ch["voice"] = pool[idx % len(pool)]
+            idx += 1
+    return pack
+
+
+def parse_brief(text):
+    """يحلل مذكرة إنتاج المخرج: الفكرة + الشخصيات + الأحداث.
+
+    الصيغة المقبولة (مرنة):
+        الفكرة/القصة: ...
+        الشخصيات:
+          - الاسم | الدور | وصف ملمح بصري | (اختياري) الصوت
+        الأحداث: ...
+    لو النص حر بدون علامات، يُعامل كله كفكرة.
+    """
+    text = (text or "").strip()
+    if not text:
+        return {"idea": "", "characters": [], "events": ""}
+    idea = ""
+    chars_block = ""
+    events = ""
+    lines = text.splitlines()
+    section = "idea"
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            continue
+        low = s
+        if low.startswith("الفكرة") or low.startswith("القصة") or low.startswith("فكرة"):
+            section = "idea"
+            s = s.split(":", 1)[1].strip() if ":" in s else ""
+            if s:
+                idea += s + "\n"
+            continue
+        if low.startswith("الشخصيات"):
+            section = "chars"
+            continue
+        if low.startswith("الأحداث") or low.startswith("احداث") or low.startswith("الأحداث/الحلقة") or low.startswith("الاحداث"):
+            section = "events"
+            continue
+        if section == "chars":
+            chars_block += s + "\n"
+        elif section == "events":
+            events += s + "\n"
+        else:
+            idea += s + "\n"
+    idea = idea.strip()
+    events = events.strip()
+
+    characters = []
+    for row in chars_block.splitlines():
+        row = row.strip().lstrip("-*•").strip()
+        if not row:
+            continue
+        parts = [p.strip() for p in row.split("|")]
+        if not parts or not parts[0]:
+            continue
+        ch = {"name": parts[0]}
+        if len(parts) > 1:
+            ch["role"] = parts[1]
+        if len(parts) > 2:
+            ch["desc"] = parts[2]
+        if len(parts) > 3 and parts[3]:
+            ch["voice"] = parts[3]
+        characters.append(ch)
+
+    if not idea and not characters and not events:
+        idea = text
+    return {"idea": idea, "characters": characters, "events": events}
+
+
+def build_studio_pack(brief, seed=None):
+    """تحويل مذكرة إنتاج المخرج إلى باك حلقة بجودة استوديو (LLM المخرج).
+
+    يدعم الصيغة المنظمة (فكرة + شخصيات + أحداث) أو فكرة نصية حرة.
+    يرجع None لو المدخل فارغ، ويقع على القالب عند فشل LLM.
+    """
+    brief = (brief or "").strip()
+    if not brief:
+        return None
+    parsed = parse_brief(brief)
+    director_text = brief
+    if parsed["idea"] or parsed["characters"] or parsed["events"]:
+        parts = []
+        if parsed["idea"]:
+            parts.append("الفكرة:\n" + parsed["idea"])
+        if parsed["characters"]:
+            rows = []
+            for ch in parsed["characters"]:
+                row = " - " + " | ".join(
+                    [ch.get("name", ""), ch.get("role", ""), ch.get("desc", "")]
+                    + ([ch["voice"]] if ch.get("voice") else [])
+                )
+                rows.append(row)
+            parts.append("الشخصيات (لا تغيّر أي شيء فيها):\n" + "\n".join(rows))
+        if parsed["events"]:
+            parts.append("الأحداث:\n" + parsed["events"])
+        director_text = "\n\n".join(parts)
+    try:
+        from server.llm import transform_brief
+
+        pack = transform_brief(director_text)
+        if pack:
+            pack["_source"] = "director"
+            _assign_voices(pack)
+            return _apply_timings(pack)
+    except Exception:
+        pass
+    return build_custom_pack(brief, seed=seed)
 
 
 def build_custom_pack(idea, seed=None):
@@ -454,6 +580,7 @@ def build_custom_pack(idea, seed=None):
         pack = transform_idea(idea)
         if pack:
             pack["_source"] = "llm"
+            _assign_voices(pack)
             return _apply_timings(pack)
     except Exception:
         pass
@@ -465,6 +592,7 @@ def build_custom_pack(idea, seed=None):
     pack["logline"] = idea[:400]
     pack["_source"] = "template"
     pack["pilot"]["hook"] = idea[:200]
+    _assign_voices(pack)
     return _apply_timings(pack)
 
 

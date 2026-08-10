@@ -3,6 +3,7 @@
 
 الاستخدام:
   python scripts/produce.py --story "قصة..." [--video] [--music] [--motion] [--out dir] [--seed N]
+  python scripts/produce.py --story "فكرة" --characters "فول|دبابة نينجا|..." --events "أحداث الحلقة" [--video]
   python scripts/produce.py --index 1 [--video] [--music] [--motion] [--out dir] [--seed N]
 """
 import argparse
@@ -25,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from creative_engine import build_custom_pack, get_pack
+from creative_engine import build_studio_pack, get_pack
 from server import pipeline
 
 
@@ -33,16 +34,34 @@ def _seed_int(seed):
     return seed if seed is not None else random.randint(1, 10**9)
 
 
+def compose_brief(story, characters, events):
+    parts = []
+    if story and story.strip():
+        parts.append("الفكرة:\n" + story.strip())
+    if characters and characters.strip():
+        parts.append("الشخصيات:\n" + characters.strip())
+    if events and events.strip():
+        parts.append("الأحداث:\n" + events.strip())
+    return "\n\n".join(parts)
+
+
 async def produce(args):
     story = args.story
     if args.story_file:
         story = Path(args.story_file).read_text(encoding="utf-8") if Path(args.story_file).exists() else ""
-    if story and story.strip():
-        pack = build_custom_pack(story.strip(), seed=args.seed)
+    characters = args.characters
+    if args.characters_file:
+        characters = Path(args.characters_file).read_text(encoding="utf-8") if Path(args.characters_file).exists() else ""
+    events = args.events
+    if args.events_file:
+        events = Path(args.events_file).read_text(encoding="utf-8") if Path(args.events_file).exists() else ""
+    brief = compose_brief(story, characters, events)
+    if brief.strip():
+        pack = build_studio_pack(brief, seed=args.seed)
         if not pack:
             print("error: story empty", flush=True)
             return 1
-        print(f"pack: custom ({pack.get('title')})", flush=True)
+        print(f"pack: {pack.get('_source', '?')} ({pack.get('title')})", flush=True)
     elif args.index:
         pack = get_pack(index=args.index)
         print(f"pack: index {args.index} ({pack.get('title')})", flush=True)
@@ -90,8 +109,12 @@ async def produce(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="إنتاج كرتون كامل على السحابة المجانية")
-    parser.add_argument("--story", help="قصة/فكرة الحلقة")
+    parser.add_argument("--story", help="الفكرة / قصة الحلقة")
     parser.add_argument("--story-file", help="مسار ملف فيه القصة (بديل عن --story للنصوص الطويلة)")
+    parser.add_argument("--characters", help="الشخصيات: سطر لكل شخصية (الاسم | الدور | الوصف البصري | الصوت)")
+    parser.add_argument("--characters-file", help="مسار ملف فيه الشخصيات (بديل آمن عن --characters)")
+    parser.add_argument("--events", help="ملخص الأحداث / نقاط الحبكة لتوجيه المخرج")
+    parser.add_argument("--events-file", help="مسار ملف فيه الأحداث (بديل آمن عن --events)")
     parser.add_argument("--index", type=int, help="رقم سلسلة جاهزة من المكتبة (1-3)")
     parser.add_argument("--video", action="store_true", help="توليد فيديو مونتاج نهائي")
     parser.add_argument("--music", action="store_true", help="موسيقى تصويرية + مؤثرات")

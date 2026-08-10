@@ -133,11 +133,11 @@ async def create_job(request: Request, x_admin_token: str = Header(default=""), 
     require_admin(x_admin_token=x_admin_token, token=token)
     body = await request.json()
     index = body.get("index")
-    idea = (body.get("idea") or "").strip()
+    idea = (body.get("idea") or body.get("brief") or "").strip()
     if idea:
-        from creative_engine import build_custom_pack
+        from creative_engine import build_studio_pack
 
-        pack = await asyncio.to_thread(build_custom_pack, idea, random.randint(1, 10**9))
+        pack = await asyncio.to_thread(build_studio_pack, idea, random.randint(1, 10**9))
         if not pack:
             raise HTTPException(status_code=400, detail="اكتب فكرة/سيناريو أولًا")
     else:

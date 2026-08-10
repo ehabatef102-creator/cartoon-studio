@@ -58,6 +58,19 @@
     sceneSec: parseInt($("#scene-sec").value, 10) || 8,
   });
 
+  /* مذكرة إنتاج المخرج: يجمع الفكرة + الشخصيات + الأحداث في نص منظم */
+  function composeBrief() {
+    const idea = ($("#idea").value || "").trim();
+    const chars = ($("#chars").value || "").trim();
+    const events = ($("#events").value || "").trim();
+    if (!idea && !chars && !events) return "";
+    const parts = [];
+    if (idea) parts.push("الفكرة:\n" + idea);
+    if (chars) parts.push("الشخصيات:\n" + chars);
+    if (events) parts.push("الأحداث:\n" + events);
+    return parts.join("\n\n");
+  }
+
   /* ---------------- أدوات مساعدة ---------------- */
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -720,17 +733,18 @@
   /* ---------------- الوضع: خادم ---------------- */
   async function runServerJob(idea) {
     const opt = options();
+    const brief = idea || composeBrief();
     const body = {
-      index: idea ? null : state.selected,
-      idea: idea || null,
+      index: brief ? null : state.selected,
+      idea: brief || null,
       render_video: true,
       audio_design: opt.music ? "auto" : null,
       motion: opt.motion ? "auto" : null,
       title: null,
     };
-    if (!idea && state.titleOverride) body.title = state.titleOverride;
+    if (!brief && state.titleOverride) body.title = state.titleOverride;
 
-    $("#output-sub").textContent = "المحرك يعمل على الخادم: سيناريو + صور + صوت + مونتاج ffmpeg.";
+    $("#output-sub").textContent = "المخرج يعمل على الخادم: سيناريو كامل بشخصياتك + أصوات مميزة + مونتاج ffmpeg.";
     showOutput();
     setPhase("writing");
     setProgress(2, "تجهيز المهمة…");
@@ -826,7 +840,8 @@
   /* ---------------- بدء الإنتاج ---------------- */
   function startProduction() {
     if (state.running) return;
-    const idea = ($("#idea").value || "").trim();
+    const brief = composeBrief();
+    const idea = state.mode === "server" ? brief : ($("#idea").value || "").trim();
     if (!idea && !state.selected) {
       setMsg("اختر سلسلة أو اكتب فكرتك أولًا.", "error");
       return;

@@ -54,6 +54,55 @@ SYSTEM_PROMPT = (
 
 SCHEMA_HINTS = ("title", "logline", "characters", "scenes")
 
+DIRECTOR_PROMPT = (
+    "أنت مخرج إنتاج استوديو رسوم متحركة عالمي (مثل Ben 10, Spider-Verse, Arcane) يتولى تنفيذ حلقة من مسلسل كرتوني عربي فاخر. "
+    "تعمل وفق مذكرة إنتاج مرسلة من المنتج تحتوي الفكرة، وصف الشخصيات، وملخص الأحداث. "
+    "مهمتك: تحويلها إلى حلقة متكاملة بمعايير استوديو حقيقي:\n"
+    "1) البنية الدرامية: افتتاحية قوية، صراع تصاعدي، ذروة مثيرة، حوار شخصي مميز لا يُكتب بالصدفة.\n"
+    "2) الشخصيات: احترم وصف المخرج حرفيًا (الاسم، الدور، الملامح، الصوت). لا تخترع شخصيات بديلة عن المذكورة.\n"
+    "3) الحوار: لكل شخصية شخصية لغوية مختلفة (متهور حاد، حكيم هادئ، مرح خفيف...) — حوار عربي فصيح مفعم بالعاطفة.\n"
+    "4) الاخراج السينمائي: كل مشهد له كاميرا (framing/angle/movement/lens/focus) وإضاءة ومزاج وحركة محددة.\n"
+    "5) مذكرة الأحداث تحدد أقواس الفصول — حوّلها لمشاهد، وأضف المشاهد الانتقالية اللازمة.\n"
+    "أخرج JSON صارمًا فقط بهذا الهيكل (لا شيء غيره):\n"
+    "{\n"
+    '  "title": "اسم السلسلة (عربي)",\n'
+    '  "genre": "النوع",\n'
+    '  "audience": "الفئة العمرية",\n'
+    '  "logline": "جملة تسويقية",\n'
+    '  "theme": "العبرة الأخلاقية",\n'
+    '  "arc": "قوس الشخصية الرئيسية",\n'
+    '  "pilot": {\n'
+    '    "title": "عنوان الحلقة",\n'
+    '    "hook": "خطاف الافتتاح",\n'
+    '    "moral": "عبرة الحلقة",\n'
+    '    "act1": "الفصل الأول",\n'
+    '    "act2": "الفصل الثاني",\n'
+    '    "act3": "الفصل الثالث",\n'
+    '    "scenes": [\n'
+    "      {\"num\": 1, \"title\": \"اسم المشهد\", \"seconds\": 22, \"location\": \"المكان\", \"mood\": \"المزاج\", "
+    '"beat": "setup", "tension": 3, "cast": ["اسم شخصية"], '
+    '        "action": "وصف حركي مسرحي بالعربية", "dialogue": [["المتكلم", "الجملة"]], '
+    '        "image_prompt": "English cinematic 2D animation image prompt", '
+    '        "sfx": ["مؤثر صوتي"], "camera": ["توجيه كاميرا"], '
+    '        "shot": {"framing": "wide establishing shot", "angle": "eye level", "movement": "slow push-in", "lens": "24mm", "focus": "التركيز"}, '
+    '        "music": {"mode": "minor", "intensity": 7, "tempo": 96, "keywords": ["epic brass"]}}\n'
+    "    ]\n"
+    "  },\n"
+    '  "characters": [{"name": "الاسم", "role": "الدور", "desc": "وصف مختصر", "personality": "طباعه وطريقة كلامه", '
+    '"voice": "ar-SA-HamedNeural أو ar-EG-SalmaNeural أو صوت edge-tts عربي يناسب الجنس والسن", "design_prompt": "English character design, ثابت الملامح والملابس"}],\n'
+    '  "next_episodes": ["فكرة حلقة قادمة"],\n'
+    '  "post_credits": {"title": "عنوان", "description": "مشهد بعد الشارة", "dialogue": [["المتكلم", "الجملة"]], "image_prompt": "English prompt"}\n'
+    "}\n"
+    "قواعد الإخراج: 8 مشاهد بالضبط (فصل أول 2، فصل ثانٍ 3، فصل ثالث 2 + مشهد انتقالي أو افتتاحي). "
+    "مجموع الثواني ≈ 180. توزيع beats: setup, inciting, rising1, rising2, climax, falling, resolution, crossover (بعد الشارة). "
+    "tension من 1 إلى 10 يرتفع للذروة. cast = الشخصيات الظاهرة فعليًا. "
+    "image_prompt بالإنجليزية، يتضمن أسماء وأوصاف الشخصيات الظاهرة لضمان ثباتها بصريًا، بأسلوب 2D سينمائي فاخر. "
+    "design_prompt لكل شخصية بالإنجليزية: الملامح، البنية، الملابس، الألوان — يُعاد استخدامه كما هو في كل المشاهد. "
+    "voice: صوت edge-tts عربي حقيقي من القائمة: ar-EG-SalmaNeural (أنثى مصرية)، ar-EG-ShakirNeural (ذكر مصري)، "
+    "ar-SA-ZariyahNeural (أنثى سعودية)، ar-SA-HamedNeural (ذكر سعودي)، ar-SY-AmanyNeural (أنثى شامية)، "
+    "ar-AE-FatimaNeural (أنثى إماراتية)، ar-AE-HamdanNeural (ذكر إماراتي). اختر الأنسب لجنس وطابع الشخصية، والراوي ar-EG-SalmaNeural."
+)
+
 
 def _extract_json(text):
     text = re.sub(r"```(?:json)?", "", text).strip()
@@ -130,6 +179,10 @@ def _normalize(data):
         }
         if ch.get("arc"):
             item["arc"] = str(ch["arc"])
+        if ch.get("personality"):
+            item["personality"] = str(ch["personality"])
+        if ch.get("voice"):
+            item["voice"] = str(ch["voice"])
         characters.append(item)
     return {
         "slug": "custom-" + uuid.uuid4().hex[:6],
@@ -177,6 +230,11 @@ def _call_openai_style(url, headers, payload):
 
 
 def transform_idea(idea):
+    return transform_brief(idea)
+
+
+def transform_brief(brief):
+    prompt = DIRECTOR_PROMPT + "\n\nمذكرة الإنتاج من المنتج:\n" + (brief or "")[:12000]
     if GROQ_API_KEY:
         try:
             data = _call_openai_style(
@@ -185,10 +243,9 @@ def transform_idea(idea):
                 {
                     "model": "llama-3.3-70b-versatile",
                     "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": idea[:8000]},
+                        {"role": "system", "content": prompt},
                     ],
-                    "temperature": 0.8,
+                    "temperature": 0.7,
                     "response_format": {"type": "json_object"},
                 },
             )
@@ -202,11 +259,8 @@ def transform_idea(idea):
                 {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
                 {
                     "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": idea[:8000]},
-                    ],
-                    "temperature": 0.8,
+                    "messages": [{"role": "system", "content": prompt}],
+                    "temperature": 0.7,
                     "response_format": {"type": "json_object"},
                 },
             )
@@ -217,8 +271,8 @@ def transform_idea(idea):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
             payload = {
-                "contents": [{"parts": [{"text": SYSTEM_PROMPT + "\n\nفكرة المستخدم:\n" + idea[:8000]}]}],
-                "generationConfig": {"temperature": 0.8, "responseMimeType": "application/json"},
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"},
             }
             data = _call_openai_style(url, {"Content-Type": "application/json"}, payload)
             text = data["candidates"][0]["content"]["parts"][0]["text"]

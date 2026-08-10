@@ -4,7 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       story:
-        description: "قصة الحلقة / الفكرة (اتركها فارغة لاستخدام سلسلة جاهزة)"
+        description: "الفكرة / قصة الحلقة (اتركها فارغة لاستخدام سلسلة جاهزة)"
+        required: false
+        type: string
+        default: ""
+      characters:
+        description: "الشخصيات — سطر لكل شخصية: الاسم | الدور | الوصف البصري | الصوت"
+        required: false
+        type: string
+        default: ""
+      events:
+        description: "الأحداث / نقاط الحبكة (يوجه المخرج)"
         required: false
         type: string
         default: ""
@@ -50,9 +60,18 @@ jobs:
       - name: Prepare story file
         env:
           STORY: ${{ github.event.inputs.story }}
+          CHARS: ${{ github.event.inputs.characters }}
+          EVENTS: ${{ github.event.inputs.events }}
         run: |
+          mkdir -p work
           if [ -n "$STORY" ]; then
-            printf '%s' "$STORY" > story.txt
+            printf '%s' "$STORY" > work/story.txt
+          fi
+          if [ -n "$CHARS" ]; then
+            printf '%s' "$CHARS" > work/chars.txt
+          fi
+          if [ -n "$EVENTS" ]; then
+            printf '%s' "$EVENTS" > work/events.txt
           fi
 
       - name: Run production on cloud
@@ -61,7 +80,9 @@ jobs:
           VIDEO: ${{ fromJSON(github.event.inputs.video) && '--video' || '' }}
           MUSIC: ${{ fromJSON(github.event.inputs.music) && '--music' || '' }}
           MOTION: ${{ fromJSON(github.event.inputs.motion) && '--motion' || '' }}
-          STORY_FILE: ${{ github.event.inputs.story != '' && 'story.txt' || '' }}
+          STORY_FILE: ${{ github.event.inputs.story != '' && 'work/story.txt' || '' }}
+          CHARS_FILE: ${{ github.event.inputs.characters != '' && 'work/chars.txt' || '' }}
+          EVENTS_FILE: ${{ github.event.inputs.events != '' && 'work/events.txt' || '' }}
         run: |
           python scripts/produce.py \
             ${IDX:+--index $IDX} \
@@ -69,6 +90,8 @@ jobs:
             ${MUSIC:+$MUSIC} \
             ${MOTION:+$MOTION} \
             ${STORY_FILE:+--story-file "$STORY_FILE"} \
+            ${CHARS_FILE:+--characters-file "$CHARS_FILE"} \
+            ${EVENTS_FILE:+--events-file "$EVENTS_FILE"} \
             --out output
 
       - name: Upload episode ZIP

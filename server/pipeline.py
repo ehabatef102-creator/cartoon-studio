@@ -66,7 +66,7 @@ async def _pollinations_image(client, prompt, out_path, seed):
     q = urllib.parse.quote(prompt)
     url = (
         f"https://image.pollinations.ai/prompt/{q}"
-        f"?width=1280&height=720&seed={seed}&nologo=true&model=flux"
+        f"?width=1920&height=1080&seed={seed}&nologo=true&model=flux"
         f"&referrer=cartoon-studio&client_id=cartoon-studio-prod"
     )
     last_err = None
@@ -125,8 +125,8 @@ async def gen_image(client, prompt, out_path, seed, sem):
         return final.name
 
 
-async def _edge_voice(text, out_path):
-    communicate = edge_tts.Communicate(text, DEFAULT_VOICE, rate="+8%")
+async def _edge_voice(text, out_path, voice=None):
+    communicate = edge_tts.Communicate(text, voice or DEFAULT_VOICE, rate="+8%")
     await communicate.save(str(out_path))
 
 
@@ -143,11 +143,21 @@ async def _eleven_voice(client, text, out_path):
     out_path.write_bytes(resp.content)
 
 
-async def gen_voice(client, text, out_path):
+async def gen_voice(client, text, out_path, voice=None):
     if ELEVENLABS_API_KEY:
         await _eleven_voice(client, text, out_path)
     else:
-        await _edge_voice(text, out_path)
+        await _edge_voice(text, out_path, voice)
+
+
+def voice_for_speaker(pack, speaker):
+    """صوت الشخصية من المذكرة؛ الراوي/المجهول يأخذ الصوت الافتراضي."""
+    if not speaker:
+        return None
+    for ch in pack.get("characters", []):
+        if ch.get("name") == speaker and ch.get("voice"):
+            return ch["voice"]
+    return None
 
 
 def build_scene_audio(voice_files, out_audio, seconds):
@@ -278,7 +288,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
             scene_voices.mkdir(parents=True, exist_ok=True)
             for li, (speaker, text) in enumerate(dialogue):
                 voice_path = scene_voices / f"{li + 1:02d}_{speaker}.mp3"
-                await gen_voice(client, text, voice_path)
+                await gen_voice(client, text, voice_path, voice=voice_for_speaker(pack, speaker))
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
             for si, scene in enumerate(scenes):
