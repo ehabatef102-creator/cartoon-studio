@@ -188,17 +188,19 @@ def build_scene_mix(ffmpeg, voice, music, sfx, seconds, out_aac):
         cmd += ["-i", str(f)]
 
     g = []
-    g.append("[0:a]aresample=24000,apad[vo]")
     nxt = 1
     if has_music:
+        g.append("[0:a]aresample=24000,apad,asplit=2[vo1][vo2]")
         g.append(f"[{nxt}:a]aresample=24000,apad,volume=0.55[m]")
-        g.append("[m][vo]sidechaincompress=threshold=0.02:ratio=8:attack=40:release=900,volume=0.5[duck]")
+        g.append("[m][vo2]sidechaincompress=threshold=0.02:ratio=8:attack=40:release=900,volume=0.5[duck]")
         nxt += 1
+    else:
+        g.append("[0:a]aresample=24000,apad[vo1]")
     if has_sfx:
         g.append(f"[{nxt}:a]aresample=24000,apad,volume=0.7[sf]")
         nxt += 1
 
-    mix_inputs = ["[vo]"]
+    mix_inputs = ["[vo1]"]
     if has_music:
         mix_inputs.append("[duck]")
     if has_sfx:

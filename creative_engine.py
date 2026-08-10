@@ -569,6 +569,62 @@ def parse_brief(text):
     return {"idea": idea, "characters": characters, "events": events}
 
 
+TARGET_EPISODE_SECONDS = 1500
+MAX_SCENES = 50
+MIN_SHOT_SECONDS = 24
+MAX_SHOT_SECONDS = 40
+
+_SHOT_VARIATIONS = [
+    {"framing": "wide establishing", "angle": "eye level", "movement": "slow push-in", "lens": "35mm anamorphic", "focus": "deep focus"},
+    {"framing": "medium", "angle": "low angle", "movement": "steady", "lens": "50mm anamorphic", "focus": "rack focus"},
+    {"framing": "close-up", "angle": "high angle", "movement": "slow pull-back", "lens": "85mm anamorphic", "focus": "shallow depth of field"},
+    {"framing": "extreme wide", "angle": "aerial crane", "movement": "crane up", "lens": "24mm anamorphic", "focus": "deep focus"},
+    {"framing": "over-the-shoulder", "angle": "eye level", "movement": "tracking", "lens": "65mm anamorphic", "focus": "shallow depth of field"},
+    {"framing": "detail macro", "angle": "close", "movement": "static", "lens": "100mm macro", "focus": "macro"},
+]
+
+
+def _expand_scenes(pack, target_seconds=TARGET_EPISODE_SECONDS, max_scenes=MAX_SCENES):
+    """يوسّع الحلقة للمدة المستهدفة: يحوّل كل مشهد إلى لقطة/عدة لقطات مستقلة (~30 ثانية لكل لقطة).
+
+    يضمن أن مجموع مدد اللقطات يصل إلى target_seconds، وأن عددها لا يتجاوز max_scenes.
+    """
+    scenes = pack.get("pilot", {}).get("scenes") or []
+    if not scenes:
+        return pack
+    total = sum(int(sc.get("seconds", 25)) for sc in scenes)
+    if total >= target_seconds * 0.9 or len(scenes) >= max_scenes:
+        return pack
+    target_shots = min(max_scenes, max(len(scenes), int(round(target_seconds / 30))))
+    if target_shots <= len(scenes):
+        return pack
+
+    per = [max(1, int(round(int(sc.get("seconds", 25)) / 30))) for sc in scenes]
+    add = target_shots - sum(per)
+    while add > 0:
+        widest = max(range(len(per)), key=lambda i: per[i] * 2 + int(scenes[i].get("seconds", 25)))
+        per[widest] += 1
+        add -= 1
+
+    out = []
+    vcount = 0
+    for sc, n in zip(scenes, per):
+        dialogue = sc.get("dialogue", [])
+        for k in range(n):
+            sub = dict(sc)
+            sub["seconds"] = int(round(target_seconds / target_shots))
+            sub["shot"] = [_SHOT_VARIATIONS[vcount % len(_SHOT_VARIATIONS)]]
+            vcount += 1
+            d0 = len(dialogue) * k // n
+            d1 = len(dialogue) * (k + 1) // n
+            sub["dialogue"] = dialogue[d0:d1]
+            out.append(sub)
+    for i, sc in enumerate(out, 1):
+        sc["num"] = i
+    pack["pilot"]["scenes"] = out
+    return pack
+
+
 def build_studio_pack(brief, seed=None):
     """تحويل مذكرة إنتاج المخرج إلى باك حلقة بجودة استوديو (LLM المخرج).
 
@@ -602,6 +658,7 @@ def build_studio_pack(brief, seed=None):
         pack = transform_brief(director_text)
         if pack:
             pack["_source"] = "director"
+            _expand_scenes(pack)
             _assign_voices(pack)
             return _apply_timings(pack)
     except Exception:
@@ -619,6 +676,7 @@ def build_custom_pack(idea, seed=None):
         pack = transform_idea(idea)
         if pack:
             pack["_source"] = "llm"
+            _expand_scenes(pack)
             _assign_voices(pack)
             return _apply_timings(pack)
     except Exception:

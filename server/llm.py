@@ -99,6 +99,8 @@ DIRECTOR_PROMPT = (
     "}\n"
     "قواعد الإخراج: عدد المشاهد حسب القصة — من 12 إلى 50 مشهدًا، وكلما كانت القصة أطول وأكثر أحداثًا زاد عدد المشاهد "
     "(قصة بسيطة ≈ 12-15 مشهدًا، قصة متوسطة ≈ 25-30، قصة ملحمية واسعة ≈ 45-50). "
+    "كل مشهد بين 25 و 35 ثانية فقط — لا تجعل أي مشهد أطول من 40 ثانية أبدًا؛ إن احتجت وقتًا أكثر اكتب مشاهد إضافية قصيرة. "
+    "القاعدة الذهبية: عدد المشاهد × 30 ≈ 1500. لا تزيد مدد المشاهد للوصول للهدف؛ زِد عدد المشاهد."
     "مجموع الثواني ≈ 1500 (25 دقيقة). توزيع beats عبر المشاهد بالتصاعد الدرامي: setup, inciting, rising1, rising2, "
     "climax, falling, resolution — ويمكن أن يتكرر نفس الـ beat في مشاهد متتالية من نفس الفصل (مثلًا 4 مشاهد rising1). "
     "المشهد الأخير من الحلقة beat=resolution، والذروة climax منتصف الحلقة تقريبًا. "
@@ -257,6 +259,7 @@ def transform_brief(brief):
                         {"role": "system", "content": prompt},
                     ],
                     "temperature": 0.7,
+                    "max_tokens": 24000,
                     "response_format": {"type": "json_object"},
                 },
             )
@@ -272,6 +275,7 @@ def transform_brief(brief):
                     "model": "gpt-4o-mini",
                     "messages": [{"role": "system", "content": prompt}],
                     "temperature": 0.7,
+                    "max_tokens": 16000,
                     "response_format": {"type": "json_object"},
                 },
             )

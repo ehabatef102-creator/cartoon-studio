@@ -229,7 +229,7 @@ def color_grade(input_video, out_mp4):
     ], timeout=900)
 
 
-def _build_scene_audio_design(tmp_dir, scene, voice_track, prefix=None, audio_design=True):
+def _build_scene_audio_design(tmp_dir, scene, voice_track, prefix=None, audio_design=True, seconds=None):
     """يبني المكس السينمائي للمشهد (موسيقى + مؤثرات + ducking). يعود لمسار الصوت النهائي."""
     if not audio_design:
         return voice_track
@@ -238,15 +238,16 @@ def _build_scene_audio_design(tmp_dir, scene, voice_track, prefix=None, audio_de
         music_wav = tmp_dir / f"{name}.music.wav"
         sfx_wav = tmp_dir / f"{name}.sfx.wav"
         music_info = scene.get("music") or {}
+        scene_seconds = int(seconds if seconds is not None else scene.get("seconds", 30))
         sound_design.synth_music(
-            music_wav, scene["seconds"],
+            music_wav, scene_seconds,
             mode=music_info.get("mode", "minor"),
             intensity=music_info.get("intensity", 5),
             tempo=music_info.get("tempo", 80),
         )
-        sound_design.synth_sfx(sfx_wav, scene.get("sfx", []), scene["seconds"])
+        sound_design.synth_sfx(sfx_wav, scene.get("sfx", []), scene_seconds)
         out_mix = tmp_dir / f"{name}.mix.m4a"
-        sound_design.build_scene_mix(FFMPEG(), voice_track, music_wav, sfx_wav, scene["seconds"], out_mix)
+        sound_design.build_scene_mix(FFMPEG(), voice_track, music_wav, sfx_wav, scene_seconds, out_mix)
         return out_mix
     except Exception as exc:
         try:
@@ -395,7 +396,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                 post_voice = tmp_dir / "post_credit.voice.m4a"
                 voice_files = sorted((voices_dir / "scene_08_post").glob("*.mp3"))
                 build_scene_audio(voice_files, post_voice, POST_CREDIT_SECONDS)
-                post_audio = _build_scene_audio_design(tmp_dir, pack["post_credits"], post_voice, "post_credit", audio_design=audio_design)
+                post_audio = _build_scene_audio_design(tmp_dir, pack["post_credits"], post_voice, "post_credit", audio_design=audio_design, seconds=POST_CREDIT_SECONDS)
                 post_video = tmp_dir / "post_credit.mp4"
                 if motion_enabled:
                     plan = motion.plan_motion(pack["post_credits"])
