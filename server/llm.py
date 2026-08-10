@@ -68,7 +68,7 @@ DIRECTOR_PROMPT = (
     '  "title": "اسم السلسلة (عربي)",\n'
     '  "genre": "النوع",\n'
     '  "audience": "الفئة العمرية",\n'
-    '  "episode_length": "20 دقيقة (الحلقة التجريبية: 3 دقائق)",\n'
+    '  "episode_length": "25 دقيقة",\n'
     '  "series_synopsis": "ملخص السلسلة الكاملة",\n'
     '  "visual_style": "الوصف البصري الموحد للأسلوب",\n'
     '  "logline": "جملة تسويقية",\n'
@@ -76,14 +76,14 @@ DIRECTOR_PROMPT = (
     '  "arc": "قوس الشخصية الرئيسية",\n'
     '  "pilot": {\n'
     '    "title": "عنوان الحلقة",\n'
-    '    "duration": "3 دقائق / 180 ثانية",\n'
+    '    "duration": "25 دقيقة / 1500 ثانية",\n'
     '    "hook": "خطاف الافتتاح",\n'
     '    "moral": "عبرة الحلقة",\n'
     '    "act1": "الفصل الأول",\n'
     '    "act2": "الفصل الثاني",\n'
     '    "act3": "الفصل الثالث",\n'
     '    "scenes": [\n'
-    "      {\"num\": 1, \"title\": \"اسم المشهد\", \"seconds\": 22, \"location\": \"المكان\", \"mood\": \"المزاج\", "
+    "      {\"num\": 1, \"title\": \"اسم المشهد\", \"seconds\": 30, \"location\": \"المكان\", \"mood\": \"المزاج\", "
     '"beat": "setup", "tension": 3, "cast": ["اسم شخصية"], '
     '        "action": "وصف حركي مسرحي بالعربية", "dialogue": [["المتكلم", "الجملة"]], '
     '        "image_prompt": "English cinematic 2D animation image prompt", '
@@ -97,9 +97,12 @@ DIRECTOR_PROMPT = (
     '  "next_episodes": ["فكرة حلقة قادمة"],\n'
     '  "post_credits": {"title": "عنوان", "description": "مشهد بعد الشارة", "dialogue": [["المتكلم", "الجملة"]], "image_prompt": "English prompt"}\n'
     "}\n"
-    "قواعد الإخراج: 8 مشاهد بالضبط (فصل أول 2، فصل ثانٍ 3، فصل ثالث 2 + مشهد انتقالي أو افتتاحي). "
-    "مجموع الثواني ≈ 180. توزيع beats: setup, inciting, rising1, rising2, climax, falling, resolution, crossover (بعد الشارة). "
-    "tension من 1 إلى 10 يرتفع للذروة. cast = الشخصيات الظاهرة فعليًا. "
+    "قواعد الإخراج: عدد المشاهد حسب القصة — من 12 إلى 50 مشهدًا، وكلما كانت القصة أطول وأكثر أحداثًا زاد عدد المشاهد "
+    "(قصة بسيطة ≈ 12-15 مشهدًا، قصة متوسطة ≈ 25-30، قصة ملحمية واسعة ≈ 45-50). "
+    "مجموع الثواني ≈ 1500 (25 دقيقة). توزيع beats عبر المشاهد بالتصاعد الدرامي: setup, inciting, rising1, rising2, "
+    "climax, falling, resolution — ويمكن أن يتكرر نفس الـ beat في مشاهد متتالية من نفس الفصل (مثلًا 4 مشاهد rising1). "
+    "المشهد الأخير من الحلقة beat=resolution، والذروة climax منتصف الحلقة تقريبًا. "
+    "tension من 1 إلى 10 يرتفع نحو الذروة. cast = الشخصيات الظاهرة فعليًا. "
     "image_prompt بالإنجليزية، يتضمن أسماء وأوصاف الشخصيات الظاهرة لضمان ثباتها بصريًا، بأسلوب 2D سينمائي فاخر. "
     "design_prompt لكل شخصية بالإنجليزية: الملامح، البنية، الملابس، الألوان — يُعاد استخدامه كما هو في كل المشاهد. "
     "voice: صوت edge-tts عربي حقيقي من القائمة: ar-EG-SalmaNeural (أنثى مصرية)، ar-EG-ShakirNeural (ذكر مصري)، "
@@ -231,7 +234,7 @@ def _norm_dialogue(dialogue):
 
 
 def _call_openai_style(url, headers, payload):
-    with httpx.Client(timeout=httpx.Timeout(240.0)) as client:
+    with httpx.Client(timeout=httpx.Timeout(600.0)) as client:
         resp = client.post(url, json=payload, headers=headers)
         resp.raise_for_status()
         return resp.json()

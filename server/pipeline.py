@@ -287,7 +287,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
         job["pack_title"] = pack["title"]
         scenes = pack["pilot"]["scenes"]
         total = len(scenes)
-        sem = asyncio.Semaphore(1 if comfy_active() else (2 if (IMAGE_PROVIDER == "stability" or STABILITY_API_KEY) else 1))
+        sem = asyncio.Semaphore(1 if comfy_active() else 2)
         job["phase"] = "توليد الصور والأصوات (سينمائي)"
         job["images"] = []
 

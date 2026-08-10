@@ -71,7 +71,7 @@ def _font(size, bold=True):
 def probe_duration(path):
     """مدة ملف صوتي/فيديو بالثواني عبر قراءة Duration من ffmpeg (بدون ffprobe)."""
     try:
-        proc = subprocess.run(["ffmpeg", "-i", str(path)], capture_output=True, text=True)
+        proc = subprocess.run([_ffmpeg(), "-i", str(path)], capture_output=True, text=True)
     except Exception:
         return 0.0
     m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", proc.stderr)
@@ -109,8 +109,26 @@ def _transition_name(prev_beat):
 
 
 def _sort_clips(clips):
-    """يرتب لقطات الحلقة حسب التسلسل السردي الصحيح ويُصلح أي ترتيب خاطئ."""
-    return sorted(clips, key=lambda c: ORDER.get(c.get("beat", "setup"), 99))
+    """يحافظ على الترتيب السردي المعطى من القصة، مع تثبيت العنوان أولًا والنهاية أخيرًا.
+
+    المشاهد تصل بالفعل مرتبة حسب القصة، والـ beats تتكرر عبر الحلقة الطويلة
+    (مثلًا 4 مشاهد rising1)، لذلك لا نُعيد ترتيبها بالـ beat بل نحافظ على تسلسلها
+    ونضمن فقط مكان العنوان وما بعد الشارة والنهاية.
+    """
+    ranked = []
+    for idx, c in enumerate(clips):
+        beat = c.get("beat", "setup")
+        if beat == "title":
+            rank = (0, idx)
+        elif beat == "end":
+            rank = (10**9, idx)
+        elif beat == "crossover":
+            rank = (10**8, idx)
+        else:
+            rank = (1000 + ORDER.get(beat, 1000), idx)
+        ranked.append((rank, c))
+    ranked.sort(key=lambda pair: pair[0])
+    return [c for _, c in ranked]
 
 
 def _video_norm():
@@ -201,11 +219,11 @@ def assemble(clips, out_mp4, keep_order=True):
         cmd += ["-i", inp]
     cmd += ["-filter_complex", ";".join(chain)]
     cmd += ["-map", "[vfinal]", "-map", f"[ax{n - 1}]"]
-    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"]
     cmd += ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"]
     cmd += [str(out_mp4)]
 
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2400)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5400)
     for png, _, _ in captions:
         try:
             png.unlink(missing_ok=True)
