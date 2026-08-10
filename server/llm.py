@@ -68,11 +68,15 @@ DIRECTOR_PROMPT = (
     '  "title": "اسم السلسلة (عربي)",\n'
     '  "genre": "النوع",\n'
     '  "audience": "الفئة العمرية",\n'
+    '  "episode_length": "20 دقيقة (الحلقة التجريبية: 3 دقائق)",\n'
+    '  "series_synopsis": "ملخص السلسلة الكاملة",\n'
+    '  "visual_style": "الوصف البصري الموحد للأسلوب",\n'
     '  "logline": "جملة تسويقية",\n'
     '  "theme": "العبرة الأخلاقية",\n'
     '  "arc": "قوس الشخصية الرئيسية",\n'
     '  "pilot": {\n'
     '    "title": "عنوان الحلقة",\n'
+    '    "duration": "3 دقائق / 180 ثانية",\n'
     '    "hook": "خطاف الافتتاح",\n'
     '    "moral": "عبرة الحلقة",\n'
     '    "act1": "الفصل الأول",\n'
@@ -189,11 +193,15 @@ def _normalize(data):
         "title": str(data.get("title", "سلسلة مخصصة")),
         "genre": str(data.get("genre", "مغامرة")),
         "audience": str(data.get("audience", "6 - 12 سنوات")),
+        "episode_length": str(data.get("episode_length", "20 دقيقة (الحلقة التجريبية: 3 دقائق)")),
+        "series_synopsis": str(data.get("series_synopsis", data.get("logline", ""))),
+        "visual_style": str(data.get("visual_style", "2D سينمائي فاخر بألوان دافئة وإضاءة درامية")),
         "logline": str(data.get("logline", "")),
         "theme": str(data.get("theme", "")),
         "arc": str(data.get("arc", "")),
         "pilot": {
             "title": str(data.get("pilot", {}).get("title", "الحلقة التجريبية")),
+            "duration": str(data.get("pilot", {}).get("duration", "3 دقائق / 180 ثانية")),
             "hook": str(data.get("pilot", {}).get("hook", "")),
             "moral": str(data.get("pilot", {}).get("moral", "")),
             "act1": str(data.get("pilot", {}).get("act1", "")),
