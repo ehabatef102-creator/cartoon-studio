@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import cards, motion, sound_design, visual
+from server import cards, motion, montage, sound_design, visual
 
 DEFAULT_VOICE = os.environ.get("DEFAULT_VOICE", "ar-EG-SalmaNeural")
 STABILITY_API_KEY = os.environ.get("STABILITY_API_KEY", "")
@@ -408,9 +408,45 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
             render_still_video(end_card, None, end_video, END_SECONDS, zoom_in=False)
             video_parts.append(end_video)
 
-            raw_video = tmp_dir / "raw.mp4"
-            concat_videos(video_parts, raw_video)
-            color_grade(raw_video, video_dir / "final.mp4")
+            montage_clips = [{"path": title_video, "seconds": TITLE_SECONDS, "beat": "title"}]
+            for i, scene in enumerate(scenes):
+                scene_video = tmp_dir / f"scene_{scene['num']:02d}.mp4"
+                voice_files = sorted((voices_dir / f"scene_{scene['num']:02d}").glob("*.mp3"))
+                dialogue = []
+                vf = iter(voice_files)
+                for speaker, text in scene.get("dialogue", []):
+                    if not text.strip():
+                        continue
+                    audio = next(vf, None)
+                    dialogue.append({"text": text, "audio": str(audio) if audio else None})
+                montage_clips.append({
+                    "path": scene_video,
+                    "seconds": scene["seconds"],
+                    "beat": scene.get("beat", "setup"),
+                    "dialogue": dialogue,
+                })
+
+            if pack.get("post_credits"):
+                post_video = tmp_dir / "post_credit.mp4"
+                post_voice_files = sorted((voices_dir / "scene_08_post").glob("*.mp3"))
+                post_dialogue = []
+                pvf = iter(post_voice_files)
+                for speaker, text in pack["post_credits"].get("dialogue", []):
+                    if not text.strip():
+                        continue
+                    audio = next(pvf, None)
+                    post_dialogue.append({"text": text, "audio": str(audio) if audio else None})
+                montage_clips.append({
+                    "path": post_video,
+                    "seconds": POST_CREDIT_SECONDS,
+                    "beat": "crossover",
+                    "dialogue": post_dialogue,
+                })
+
+            montage_clips.append({"path": end_video, "seconds": END_SECONDS, "beat": "end"})
+
+            final_video = video_dir / "final.mp4"
+            montage.assemble(montage_clips, final_video)
 
         job["status"] = "done"
         job["progress"] = 100
