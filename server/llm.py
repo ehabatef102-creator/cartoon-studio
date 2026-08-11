@@ -11,6 +11,33 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
+# مدة الحلقة المستهدفة بالثواني (إن ضُبط). تحدد عدد المشاهد المطلوب (مشهد ≈ 30 ثانية).
+TARGET_SECONDS = os.environ.get("TARGET_SECONDS", "").strip()
+
+
+def _target_scene_count():
+    """عدد المشاهد المستهدف من المدة (للتشغيل التجريبي السريع). يُعيد None بدون ضبط."""
+    try:
+        ts = int(TARGET_SECONDS)
+    except (TypeError, ValueError):
+        return None
+    if ts < 60:
+        return None
+    return max(3, min(50, int(round(ts / 30))))
+
+
+def _length_directive():
+    """سطر تعليمات يُلحق بالبرومبتات يفرض عدد المشاهد/المدة المطلوبة."""
+    n = _target_scene_count()
+    if n is None:
+        return ""
+    total = n * 30
+    return (
+        f"\nمطلوب {n} مشاهد بالضبط (هذه حلقة اختبار قصيرة). "
+        f"كل مشهد 25-35 ثانية ومجموعها ≈ {total} ثانية ({total // 60} دقيقة تقريبًا). "
+        "لا تزيد عن ذلك إطلاقًا."
+    )
+
 SYSTEM_PROMPT = (
     "أنت كاتب سيناريو رسوم متحركة عربية محترف بمستوى استوديوهات عالمية (مارفل/ديزني/ستوديو جيبلي). "
     "تحترف البنية الدرامية من 3 فصول، أقواس الشخصيات، الصراع والتوتر التصاعدي، واللحظات العاطفية. "
@@ -79,6 +106,9 @@ OUTLINE_PROMPT = (
     "2) beats بتصاعد: setup, inciting, rising1, rising2, climax, falling, resolution — تتكرر في الفصل، الذروة قرب المنتصف، والآخر resolution.\n"
     "3) في scenes اكتب title+location+beat فقط، التفاصيل تُكتب لاحقًا.\n"
     "4) voice من: ar-EG-SalmaNeural، ar-EG-ShakirNeural، ar-SA-ZariyahNeural، ar-SA-HamedNeural، ar-SY-AmanyNeural، ar-AE-FatimaNeural، ar-AE-HamdanNeural.\n"
+    "5) للمدة المستهدفة: مطلوب عدد محدد من المشاهد ومدة كل مشهد ثابتة — الالتزام حرفيًا وعدم تجاوز العدد.\n"
+    "6) إن كانت القصة بسيطة جدًا: يمكن التقليل قليلًا حسب المدة المطلوبة في التعليمات.\n"
+    + _length_directive()
 )
 
 SCENES_BATCH_PROMPT = (
@@ -97,6 +127,7 @@ SCENES_BATCH_PROMPT = (
     "قواعد: عدد المشاهد {start}-{end} بالضبط، كل مشهد 25-35 ثانية (لا يزيد عن 40)، "
     "لكل مشهد shot+music+sfx+camera+image_prompt كاملة، حوار عربي فصيح لكل شخصية طباعها، "
     "المواقع والشخصيات من الخطة حرفيًا، image_prompt بالإنجليزية يذكر الشخصيات الظاهرة."
+    + _length_directive()
 )
 
 OUTLINE_FALLBACK_SCENE_TEMPLATE = (
@@ -395,6 +426,10 @@ def _finish_from_outline(outline, raw):
         )
         data = _call_llm(fallback, max_tokens=3200)
         return _normalize(data) if data else None
+    target = _target_scene_count()
+    if target is not None:
+        # التشغيل التجريبي: نحسم العدد المطلوب (نأخذ أول N من الخطة)
+        total = min(target, len(scenes))
     total = min(total, 50)
 
     characters = outline.get("characters") or []
