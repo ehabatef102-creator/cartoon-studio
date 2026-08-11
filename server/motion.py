@@ -17,6 +17,79 @@ FPS = 24
 OUT_W, OUT_H = 1280, 720
 SOURCE_W, SOURCE_H = 1920, 1080
 
+# ---------------------------------------------------------------------------
+# أنيميشن "ب": تمايل عضوي بالشرائح (2.5D sway) — شخصية حية بلا GPU.
+# كل شريحة رأسية تتحرك بأطوار متدرجة فتبدو الشخصية تتنفس/تتأرجح/تطير.
+# ---------------------------------------------------------------------------
+
+# كلمات الحركة → (سعة التموج px، تردد الموجة، ميل الطيران، نبض عمودي px)
+_ACTION_MODES = {
+    "fly":       (26, 1.1, 0.10, 16),
+    "swoop":     (38, 1.5, 0.16, 26),
+    "dive":      (34, 1.7, 0.20, 30),
+    "run":       (20, 2.8, 0.04, 10),
+    "leap":      (24, 2.2, 0.10, 22),
+    "jump":      (24, 2.2, 0.10, 22),
+    "climb":     (12, 1.0, 0.02, 5),
+    "wave":      (16, 1.6, 0.03, 8),
+    "turn":      (8,  0.9, 0.24, 3),
+    "fight":     (28, 2.4, 0.12, 16),
+    "shake":     (30, 3.2, 0.06, 18),
+    "breathe":   (5,  0.5, 0.0,  0),
+}
+
+_ACTION_WORDS = {
+    "fly": ("يطير", "طيران", "تحليق", "يحلق", "في الهواء", "أجنحة", "flying", "flies", "flight", "soar"),
+    "swoop": ("ينقض", "انقضاض", "يهاجم من الجو", "swoop", "diving attack"),
+    "dive": ("يغطس", "غوص", "ينزل بسرعة", "dive", "plummet"),
+    "run": ("يجري", "جري", "ركض", "يهرب", "مطارد", "run", "running", "chase", "flee"),
+    "leap": ("يقفز", "وثبة", "ينط", "leap", "leaping", "bound"),
+    "climb": ("يتسلق", "تسلق", "climb", "climbing"),
+    "wave": ("يلوح", "تلويح", "تحية", "wave", "waving"),
+    "turn": ("يستدير", "التفات", "يلتفت", "turn", "turning", "twist"),
+    "fight": ("يقاتل", "ضربات", "لكم", "قتال", "معركة", "fight", "fighting", "punch", "kick"),
+    "shake": ("يهتز", "اهتزاز", "يرتجف", "زلزال", "shake", "shaking", "tremble", "quake"),
+}
+
+
+def action_mode(scene):
+    """يحدد نوع حركة الشخصية من وصف المشهد (action/title/mood) أو beat."""
+    text = " ".join([
+        str(scene.get("action") or ""),
+        str(scene.get("title") or ""),
+        str(scene.get("mood") or ""),
+    ]).lower()
+    for mode, words in _ACTION_WORDS.items():
+        if any(w in text for w in words):
+            return mode
+    beat = (scene.get("beat") or "setup").lower()
+    if beat in ("climax", "rising2"):
+        return "shake"
+    if beat == "rising1":
+        return "breathe"
+    return "breathe"
+
+
+def plan_action(scene, prev_plan=None):
+    """خطة أنيميشن الشخصية: تموج بالشرائح + ميل طيران + نبض عمودي."""
+    mode = action_mode(scene)
+    amp, freq, tilt, bounce = _ACTION_MODES[mode]
+    try:
+        tension = int(scene.get("tension", 5))
+    except (TypeError, ValueError):
+        tension = 5
+    amp = amp * (0.7 + tension * 0.06)
+    motion = plan_motion(scene, prev_plan=prev_plan)
+    return {
+        "mode": mode,
+        "amp": round(amp, 1),
+        "freq": freq,
+        "tilt": tilt,
+        "bounce": bounce,
+        "segments": int(os.environ.get("MOTION_SEGMENTS", "6")),
+        "camera": motion,
+    }
+
 
 def _shot_of(scene):
     shot = (scene.get("shot") or [{}])
@@ -123,6 +196,109 @@ def render_scene_clip(ffmpeg, image, audio, out_mp4, seconds, plan):
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     if proc.returncode != 0:
         raise RuntimeError(f"فشل رندر المقطع: {' '.join(cmd)}\n{proc.stderr[-2000:]}")
+    return out_mp4
+
+
+def _sway_expr(seg, seg_count, plan, pad_x, pad_y):
+    """معادلة نافذة الشريحة: إزاحة أفقية جيبية بطور متدرج لكل شريحة + نبض عمودي.
+
+    كل شريحة ترى نافذة من الصورة تنزلق يسارًا/يمينًا على إيقاع الموجة بأطوار
+    متتالية — فتظهر الشخصية وكأنها تتمايل/تتنفس/تطير. pad_x/pad_y هامش الصورة
+    المضاف (أصلاً = السعة) كي تظل الإزاحة ضمن حدود الصورة دون حواف سوداء.
+    """
+    t = "t"
+    amp = float(plan.get("amp", 14))
+    freq = float(plan.get("freq", 1.2))
+    bounce = float(plan.get("bounce", 0))
+    shift = float(plan.get("phase", 0))
+    phase = f"{2 * math.pi * seg / max(1, seg_count) + shift}"
+    base_x = f"({pad_x} + {seg}*{SOURCE_W}/{seg_count})"
+    sway = f"({amp}*sin(2*{math.pi}*{freq}*{t}+{phase}))"
+    x = f"({base_x}+{sway})"
+    y = f"({pad_y}+{bounce}*sin(2*{math.pi}*{freq}*{t}+{phase}+{math.pi}/2))"
+    return x, y
+
+
+def render_action_clip(ffmpeg, image, audio, out_mp4, seconds, plan):
+    """أنيميشن شخصية حي (2.5D sway): تقسيم الصورة لشرائح تنزلق بتموج متدرج.
+
+    - pad يضيف هامشًا = سعة التموج كي لا تظهر حواف سوداء عند انزلاق الشرائح.
+    - الشرائح تتحرك بأطوار متتالية → تمايل عضوي (تنفس/طيران/ارتعاش) حقيقي.
+    - ميل طيران (rotate) اختياري للمشاهد الهوائية.
+    - يقع على محرك الكاميرا (zoompan) فيُجمع أنيميشن + كاميرا معًا.
+    """
+    frames = max(2, int(seconds * FPS))
+    seg_count = max(3, min(8, int(plan.get("segments", 6))))
+    amp = max(6, float(plan.get("amp", 14)))
+    bounce = max(0, float(plan.get("bounce", 0)))
+    tilt = float(plan.get("tilt", 0))
+    cam = dict(plan.get("camera") or {})
+    cam["frames"] = frames
+    z, cx, cy = _zoom_expr(cam)
+
+    pad_x = int(amp)
+    pad_y = int(bounce)
+    seg_w = SOURCE_W // seg_count
+    pad_w = SOURCE_W + 2 * pad_x
+    pad_h = SOURCE_H + 2 * pad_y
+    base = (
+        f"[0:v]scale={SOURCE_W}:{SOURCE_H}:force_original_aspect_ratio=increase,"
+        f"crop={SOURCE_W}:{SOURCE_H},"
+        f"pad={pad_w}:{pad_h}:{pad_x}:{pad_y}:black[p0]"
+    )
+    labels = "".join(f"[b{s}]" for s in range(seg_count))
+    inputs = [base, f"[p0]split={seg_count}{labels}"]
+    seg_parts = []
+    for s in range(seg_count):
+        x_expr, y_expr = _sway_expr(s, seg_count, plan, pad_x, pad_y)
+        seg_parts.append(
+            f"[b{s}]crop={seg_w}:{pad_h}:x='{x_expr}':y='{y_expr}'"
+            f",scale={OUT_W // seg_count}:{OUT_H}[s{s}]"
+        )
+    row_labels = "".join(f"[s{s}]" for s in range(seg_count))
+    join = f"{row_labels}hstack=inputs={seg_count}[row]"
+    if tilt:
+        rotate = f"[row]rotate={tilt:.4f}:fillcolor=black,"
+    else:
+        rotate = f"[row]"
+    camera = (
+        f"{rotate}zoompan=z='{z}':d={frames}:x='{cx}':y='{cy}':s={OUT_W}x{OUT_H}:fps={FPS}[v]"
+    )
+    filter_complex = ";".join(inputs + seg_parts + [join, camera])
+
+    cmd = [ffmpeg, "-y", "-loop", "1", "-framerate", str(FPS), "-i", str(image)]
+    if audio and os.path.exists(str(audio)):
+        cmd += ["-i", str(audio)]
+        cmd += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a", "-c:a", "aac"]
+    else:
+        cmd += ["-f", "lavfi", "-t", str(seconds), "-i", "anullsrc=r=24000:cl=mono"]
+        cmd += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a", "-c:a", "aac"]
+    cmd += ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]
+    cmd += ["-t", str(seconds), "-shortest", str(out_mp4)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+    if proc.returncode != 0:
+        raise RuntimeError(f"فشل رندر الأنيميشن: {' '.join(cmd)}\n{proc.stderr[-2000:]}")
+    return out_mp4
+
+
+def merge_pose_clips(ffmpeg, clip_a, clip_b, out_mp4, seconds):
+    """يدمج مقطعي pose متتاليين بـ crossfade في منتصف المدة (pose-to-pose).
+
+    الصوت (الحوار والمؤثرات) من المقطع الأول فقط — لأن pose الثانية مجرد
+    تغيير وضعية لا حوار له. overlap 0.7 ثانية كي يبدو الانتقال حركة كرتونية
+    سريعة لا "قطع" مفاجئ.
+    """
+    total = max(2.0, float(seconds))
+    overlap = min(0.7, total / 4)
+    offset = max(0.0, total / 2 - overlap / 2)
+    fc = f"[0:v][1:v]xfade=transition=fade:duration={overlap}:offset={offset}[v]"
+    cmd = [ffmpeg, "-y", "-i", str(clip_a), "-i", str(clip_b),
+           "-filter_complex", fc, "-map", "[v]", "-map", "0:a?",
+           "-c:a", "aac", "-c:v", "libx264", "-preset", "veryfast",
+           "-pix_fmt", "yuv420p", "-t", f"{total}", "-shortest", str(out_mp4)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+    if proc.returncode != 0:
+        raise RuntimeError(f"فشل دمج الـ poses: {' '.join(cmd)}\n{proc.stderr[-2000:]}")
     return out_mp4
 
 

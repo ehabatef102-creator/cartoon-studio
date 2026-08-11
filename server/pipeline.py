@@ -25,6 +25,7 @@ POLLINATIONS_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "")
 IMAGE_PROVIDER = os.environ.get("IMAGE_PROVIDER", "auto")
 AUDIO_DESIGN = os.environ.get("AUDIO_DESIGN", "1") == "1"
 MOTION_ENGINE = os.environ.get("MOTION_ENGINE", "1") == "1"
+MOTION_POSES = os.environ.get("MOTION_POSES", "0") == "1"
 COMFY_URL = os.environ.get("COMFY_URL", "").strip()
 
 TITLE_SECONDS = 4
@@ -294,7 +295,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
         job["phase"] = "توليد الصور والأصوات (سينمائي)"
         job["images"] = []
 
-        async def generate_scene(prefix, image_prompt, dialogue, seed_off, scene=None):
+        async def generate_scene(prefix, image_prompt, dialogue, seed_off, scene=None, pose=False):
             image_path = images_dir / f"{prefix}"
             ref_path = None
             if comfy_active() and scene:
@@ -308,6 +309,8 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
             image_name = await gen_image(client, image_prompt, image_path, seed=job["seed"] + seed_off, sem=sem,
                                          ref_path=ref_path, beat=(scene or {}).get("beat"))
             job["images"].append(f"images/{image_name}")
+            if pose:
+                return
             scene_voices = voices_dir / prefix
             scene_voices.mkdir(parents=True, exist_ok=True)
             for li, (speaker, text) in enumerate(dialogue):
@@ -337,6 +340,9 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                 save_job(job)
                 prompt = visual.compose_scene_prompt(pack, scene)
                 await generate_scene(f"scene_{scene['num']:02d}", prompt, scene["dialogue"], scene["num"], scene=scene)
+                if MOTION_POSES and motion.action_mode(scene) != "breathe":
+                    pose_prompt = f"{prompt} -- same scene, character caught mid-action in a different dynamic pose, action shot, wide framing"
+                    await generate_scene(f"scene_{scene['num']:02d}_b", pose_prompt, [], scene["num"], scene=scene, pose=True)
                 job["progress"] = int((si + 1) / total * 100)
                 save_job(job)
             if pack.get("post_credits"):
@@ -411,7 +417,22 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                     if anim is not None:
                         scene_video = anim
                     else:
-                        motion.render_scene_clip(FFMPEG(), image_file, scene_audio, scene_video, scene["seconds"], plan)
+                        # أنيميشن الشخصية الحي (2.5D sway) على نفس المحرك المحلي
+                        aplan = motion.plan_action(scene, prev_plan=plan)
+                        pose_files = sorted(images_dir.glob(f"scene_{scene['num']:02d}_b.*"))
+                        if pose_files:
+                            # مسار "أ": pose-to-pose — نفس المحرك على صورتين (وضعية
+                            # أساسية + وضعية حركة) بإزاحة طور عكسية ثم دمج بـ crossfade.
+                            aplan["phase"] = 0.0
+                            pose_plan = dict(aplan)
+                            pose_plan["phase"] = 3.141592653589793
+                            tmp_a = tmp_dir / f"scene_{scene['num']:02d}_a.mp4"
+                            tmp_b = tmp_dir / f"scene_{scene['num']:02d}_b.mp4"
+                            motion.render_action_clip(FFMPEG(), image_file, scene_audio, tmp_a, scene["seconds"], aplan)
+                            motion.render_action_clip(FFMPEG(), pose_files[0], None, tmp_b, scene["seconds"], pose_plan)
+                            motion.merge_pose_clips(FFMPEG(), tmp_a, tmp_b, scene_video, scene["seconds"])
+                        else:
+                            motion.render_action_clip(FFMPEG(), image_file, scene_audio, scene_video, scene["seconds"], aplan)
                 else:
                     zoom_in = (i % 2 == 0)
                     render_still_video(image_file, scene_audio, scene_video, scene["seconds"], zoom_in=zoom_in)
@@ -428,7 +449,8 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                 post_video = tmp_dir / "post_credit.mp4"
                 if motion_enabled:
                     plan = motion.plan_motion(pack["post_credits"])
-                    motion.render_scene_clip(FFMPEG(), post_image, post_audio, post_video, POST_CREDIT_SECONDS, plan)
+                    aplan = motion.plan_action(pack["post_credits"], prev_plan=plan)
+                    motion.render_action_clip(FFMPEG(), post_image, post_audio, post_video, POST_CREDIT_SECONDS, aplan)
                 else:
                     render_still_video(post_image, post_audio, post_video, POST_CREDIT_SECONDS, zoom_in=True)
                 video_parts.append(post_video)
