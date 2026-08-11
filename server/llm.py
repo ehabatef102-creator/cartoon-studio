@@ -56,102 +56,58 @@ SYSTEM_PROMPT = (
 
 SCHEMA_HINTS = ("title", "logline", "characters", "scenes")
 
+JSON_SCHEMA = (
+    '{"title":"سلسلة","genre":"نوع","audience":"فئة","episode_length":"25 دقيقة",'
+    '"series_synopsis":"ملخص","visual_style":"أسلوب بصري","logline":"جملة",'
+    '"theme":"عبرة","arc":"قوس","pilot":{"title":"عنوان","hook":"خطاف","moral":"عبرة",'
+    '"act1":"ف1","act2":"ف2","act3":"ف3"},'
+    '"characters":[{"name":"اسم","role":"دور","desc":"وصف","personality":"طباع","voice":"صوت edge-tts",'
+    '"design_prompt":"English design"}],'
+    '"next_episodes":["فكرة"],'
+    '"post_credits":{"title":"عنوان","description":"وصف","dialogue":[["متكلم","جملة"]],"image_prompt":"English"}}'
+)
+
 OUTLINE_PROMPT = (
-    "أنت مخرج استوديو رسوم متحركة عالمي (Spider-Verse, Arcane, Ben 10) يتولى حلقة من مسلسل كرتوني عربي فاخر. "
-    "تعمل وفق مذكرة إنتاج من المنتج فيها الفكرة والشخصيات وملخص الأحداث. "
-    "مهمتك في هذه المرحلة: وضع خطة الحلقة وتوزيع أحداثها على محاور القصة.\n"
-    "أخرج JSON صارمًا فقط بهذا الهيكل (لا شيء غيره):\n"
-    "{\n"
-    '  "title": "اسم السلسلة (عربي)",\n'
-    '  "genre": "النوع",\n'
-    '  "audience": "الفئة العمرية",\n'
-    '  "episode_length": "25 دقيقة",\n'
-    '  "series_synopsis": "ملخص السلسلة الكاملة",\n'
-    '  "visual_style": "الوصف البصري الموحد للأسلوب",\n'
-    '  "logline": "جملة تسويقية",\n'
-    '  "theme": "العبرة الأخلاقية",\n'
-    '  "arc": "قوس الشخصية الرئيسية",\n'
-    '  "pilot": {\n'
-    '    "title": "عنوان الحلقة",\n'
-    '    "hook": "خطاف الافتتاح",\n'
-    '    "moral": "عبرة الحلقة",\n'
-    '    "act1": "الفصل الأول",\n'
-    '    "act2": "الفصل الثاني",\n'
-    '    "act3": "الفصل الثالث"\n'
-    "  },\n"
-    '  "characters": [{"name": "الاسم", "role": "الدور", "desc": "وصف مختصر", "personality": "طباعه وطريقة كلامه", '
-    '"voice": "ar-SA-HamedNeural أو ar-EG-SalmaNeural أو صوت edge-tts عربي يناسب الجنس والسن", "design_prompt": "English character design, ثابت الملامح والملابس"}],\n'
-    '  "next_episodes": ["فكرة حلقة قادمة"],\n'
-    '  "post_credits": {"title": "عنوان", "description": "مشهد بعد الشارة", "dialogue": [["المتكلم", "الجملة"]], "image_prompt": "English prompt"},\n'
-    '  "scenes": [\n'
-    '    {"title": "اسم المشهد", "location": "المكان", "beat": "setup"}\n'
-    "  ]\n"
-    "}\n"
-    "قواعد الخطة (مهمة جدًا):\n"
-    "1) عدد المشاهد حسب القصة: قصة بسيطة ≈ 12-15، قصة متوسطة ≈ 25-30، قصة ملحمية غنية بالأحداث ≈ 45-50. "
-    "القصة الملحمية الطويلة لا تقل عن 40 مشهدًا.\n"
-    "2) قائمة scenes تحدد كل أحداث الحلقة بالترتيب السردي — مشهد لكل حدث/انتقال درامي. "
-    "وزّع الأحداث على محاور القصة (الافتتاحية، التصاعد، الذروة، الخاتمة) بديناميكية، لا تكتفِ بترتيب الأحداث كما وردت فقط، "
-    "بل أضف مشاهد انتقالية ومشاهد تطوير شخصيات.\n"
-    "3) beats بتصاعد درامي عبر المشاهد: setup, inciting, rising1, rising2, climax, falling, resolution — "
-    "يمكن تكرار beat في مشاهد متتالية من نفس الفصل، الذروة climax قرب منتصف الحلقة، وآخر مشهد beat=resolution.\n"
-    "4) في هذه المرحلة اكتب title + location + beat فقط لكل مشهد في scenes — التفاصيل الكاملة تُكتب في مرحلة لاحقة.\n"
+    "أنت مخرج كرتون عربي فاخر. ضع خطة حلقة كاملة: قسم أحداث المذكرة على محاور القصة "
+    "(افتتاحية، تصاعد، ذروة، خاتمة) وأضف مشاهد انتقالية. "
+    "أخرج JSON واحدًا فقط (بدون نص آخر)، حقوله: title, genre, audience, series_synopsis, visual_style, logline, theme, arc, "
+    'pilot{title,hook,moral,act1,act2,act3}, characters[{"name","role","desc","personality","voice","design_prompt(English)"}], '
+    'next_episodes, post_credits{title,description,dialogue,image_prompt}, '
+    'scenes[{title,location,beat}] — scenes تعرّف كل أحداث الحلقة بالترتيب (مشهد لكل حدث أو انتقال).\n'
+    "قواعد:\n"
+    "1) عدد المشاهد حسب القصة: بسيطة 12-15، متوسطة 25-30، ملحمية غنية 45-50، ولا تقل الملحمية عن 40.\n"
+    "2) beats بتصاعد: setup, inciting, rising1, rising2, climax, falling, resolution — تتكرر في الفصل، الذروة قرب المنتصف، والآخر resolution.\n"
+    "3) في scenes اكتب title+location+beat فقط، التفاصيل تُكتب لاحقًا.\n"
+    "4) voice من: ar-EG-SalmaNeural، ar-EG-ShakirNeural، ar-SA-ZariyahNeural، ar-SA-HamedNeural، ar-SY-AmanyNeural، ar-AE-FatimaNeural، ar-AE-HamdanNeural.\n"
 )
 
 SCENES_BATCH_PROMPT = (
-    "أنت مخرج استوديو رسوم متحركة عالمي. خطة الحلقة جاهزة، والآن تكتب المشاهد كاملة واحدًا واحدًا بمستوى تنفيذي.\n"
-    "المذكرة الإنتاجية:\n{production}\n"
-    "الخطة المعتمدة (هذا هو عدد المشاهد النهائي وتوزيعها):\n{outline}\n"
-    "الشخصيات المعتمدة (التزم بها حرفيًا ولا تخترع غيرها):\n{characters}\n"
-    "المشاهد المكتملة سابقًا (للاستمرارية — لا تُعد كتابتها):\n{existing}\n"
-    "اكتب الآن المشاهد من رقم {start} إلى {end} (شاملة) — كل مشهد بالتفاصيل الكاملة:\n"
-    "{\"scenes\": [\n"
-    "  {\"num\": 1, \"title\": \"اسم المشهد\", \"seconds\": 30, \"location\": \"المكان\", \"mood\": \"المزاج\", "
-    "\"beat\": \"setup\", \"tension\": 3, \"cast\": [\"اسم شخصية\"], "
-    "  \"action\": \"وصف حركي مسرحي بالعربية\", \"dialogue\": [[\"المتكلم\", \"الجملة\"]], "
-    "  \"image_prompt\": \"English cinematic 2D animation image prompt\", "
-    "  \"sfx\": [\"مؤثر صوتي\"], \"camera\": [\"توجيه كاميرا\"], "
-    "  \"shot\": {\"framing\": \"wide establishing shot\", \"angle\": \"eye level\", \"movement\": \"slow push-in\", \"lens\": \"24mm\", \"focus\": \"التركيز\"}, "
-    "  \"music\": {\"mode\": \"minor\", \"intensity\": 7, \"tempo\": 96, \"keywords\": [\"epic brass\"]}}\n"
-    "  ...\n"
-    "]}\n"
-    "قواعد التنفيذ:\n"
-    "- اكتب العدد المطلوب من المشاهد بالضبط (من {start} إلى {end}). كل مشهد بين 25 و 35 ثانية، لا يزيد عن 40 أبدًا.\n"
-    "- كل مشهد له أداء بصري ومؤثرات كاملة: shot (framing/angle/movement/lens/focus)، music (mode/intensity/tempo/keywords)، "
-    "sfx لمؤثرات المشهد، camera لتوجيه الكاميرا، وimage_prompt بالإنجليزية يصف الصورة بدقة (المشهد + الشخصيات الظاهرة).\n"
-    "- الحوار عربي فصيح، لكل شخصية طباعها اللغوية، والعواطف حاضرة في كل سطر.\n"
-    "- التزم بأسماء المواقع والشخصيات من الخطة حرفيًا لضمان الاتساق البصري.\n"
-    "- أخرج JSON واحدًا صالحًا فقط، بدون أي نص خارج JSON.\n"
+    "أنت مخرج كرتون عربي. اكتب المشاهد من رقم {start} إلى {end} كاملة بالتفاصيل التنفيذية، "
+    "مطابقة للخطة أدناه وباستمرارية مع المكتملة.\n"
+    "المذكرة:\n{production}\n"
+    "الخطة:\n{outline}\n"
+    "الشخصيات (التزم بها حرفيًا):\n{characters}\n"
+    "المكتمل سابقًا:\n{existing}\n"
+    "أخرج JSON واحدًا فقط: {\"scenes\":[{\"num\":1,\"title\":\"اسم\",\"seconds\":30,\"location\":\"مكان\","
+    "\"mood\":\"مزاج\",\"beat\":\"setup\",\"tension\":3,\"cast\":[\"اسم\"],\"action\":\"وصف حركي عربي\","
+    "\"dialogue\":[[\"متكلم\",\"جملة\"]],\"image_prompt\":\"English cinematic 2D prompt\","
+    "\"sfx\":[\"مؤثر\"],\"camera\":[\"كاميرا\"],"
+    "\"shot\":{\"framing\":\"wide\",\"angle\":\"eye level\",\"movement\":\"slow push-in\",\"lens\":\"24mm\",\"focus\":\"التركيز\"},"
+    "\"music\":{\"mode\":\"minor\",\"intensity\":7,\"tempo\":96,\"keywords\":[\"epic brass\"]}}, ...]}\n"
+    "قواعد: عدد المشاهد {start}-{end} بالضبط، كل مشهد 25-35 ثانية (لا يزيد عن 40)، "
+    "لكل مشهد shot+music+sfx+camera+image_prompt كاملة، حوار عربي فصيح لكل شخصية طباعها، "
+    "المواقع والشخصيات من الخطة حرفيًا، image_prompt بالإنجليزية يذكر الشخصيات الظاهرة."
 )
 
 OUTLINE_FALLBACK_SCENE_TEMPLATE = (
-    "أنت مخرج استوديو رسوم متحركة عالمي. مهمتك: تحويل مذكرة الإنتاج التالية إلى حلقة كرتونية عربية فاخرة كاملة "
-    "بكل التفاصيل التنفيذية (أداء بصري ومؤثرات لكل مشهد).\n"
-    "المذكرة الإنتاجية:\n{production}\n"
-    "أخرج JSON صارمًا فقط بهذا الهيكل (لا شيء غيره):\n"
-    "{\n"
-    '  "title": "اسم السلسلة (عربي)",\n'
-    '  "genre": "النوع",\n'
-    '  "audience": "الفئة العمرية",\n'
-    '  "episode_length": "25 دقيقة",\n'
-    '  "series_synopsis": "ملخص السلسلة",\n'
-    '  "visual_style": "الوصف البصري الموحد",\n'
-    '  "logline": "جملة تسويقية",\n'
-    '  "theme": "العبرة",\n'
-    '  "arc": "قوس الشخصية",\n'
-    '  "pilot": {"title": "عنوان الحلقة", "hook": "الخطاف", "moral": "العبرة", "act1": "الفصل 1", "act2": "الفصل 2", "act3": "الفصل 3", "scenes": [\n'
-    '    {"num": 1, "title": "مشهد", "seconds": 30, "location": "مكان", "mood": "مزاج", "beat": "setup", "tension": 3, '
-    '"cast": ["شخصية"], "action": "وصف حركي", "dialogue": [["متكلم", "جملة"]], "image_prompt": "English prompt", '
-    '"sfx": ["مؤثر"], "camera": ["كاميرا"], "shot": {"framing": "wide", "angle": "eye level", "movement": "slow push-in", "lens": "24mm", "focus": "التركيز"}, '
-    '"music": {"mode": "minor", "intensity": 7, "tempo": 96, "keywords": ["epic brass"]}}\n'
-    "  ]},\n"
-    '  "characters": [{"name": "اسم", "role": "دور", "desc": "وصف", "personality": "طباع", "voice": "صوت edge-tts", "design_prompt": "English design"}],\n'
-    '  "next_episodes": ["فكرة"],\n'
-    '  "post_credits": {"title": "عنوان", "description": "وصف", "dialogue": [], "image_prompt": "English"}\n'
-    "}\n"
-    "قواعد: عدد المشاهد حسب القصة من 12 إلى 50 (قصة ملحمية ≈ 45-50)، كل مشهد 25-35 ثانية ومجموعها ≈ 1500 (25 دقيقة)، "
-    "beats بتصاعد درامي (setup, inciting, rising1, rising2, climax, falling, resolution) ويمكن تكرارها في الفصل الواحد. "
-    "لكل مشهد shot وmusic وsfx وcamera وimage_prompt كاملة. الحوار عربي فصيح عاطفي."
+    "أنت مخرج كرتون عربي فاخر. حوّل المذكرة التالية إلى حلقة كاملة بكل التفاصيل.\n"
+    "المذكرة:\n{production}\n"
+    "أخرج JSON واحدًا فقط (بدون نص آخر):\n"
+    + JSON_SCHEMA
+    + " لكن داخل pilot أضف scenes:[{num,title,seconds,location,mood,beat,tension,cast,action,dialogue,image_prompt,sfx,camera,shot,music}]\n"
+    "قواعد: عدد المشاهد حسب القصة من 12 إلى 50 (ملحمية 45-50)، كل مشهد 25-35 ثانية ومجموعها ≈ 1500 (25 دقيقة)، "
+    "beats بتصاعد (setup, inciting, rising1, rising2, climax, falling, resolution) تتكرر في الفصل، "
+    "لكل مشهد shot+music+sfx+camera+image_prompt كاملة، حوار عربي فصيح."
 )
 
 DIRECTOR_PROMPT = (
@@ -417,14 +373,14 @@ def transform_brief(brief):
     raw = (brief or "").strip()
 
     # المرحلة 1: خطة الحلقة (توزيع الأحداث على محاور القصة) — استجابة صغيرة تنجح دائمًا
-    production_short = "\n\nمذكرة الإنتاج من المنتج:\n" + raw[:2000]
-    outline = _call_llm(OUTLINE_PROMPT + production_short, max_tokens=9000)
+    production_short = "\n\nمذكرة الإنتاج من المنتج:\n" + raw[:1500]
+    outline = _call_llm(OUTLINE_PROMPT + production_short, max_tokens=2200)
     if not outline:
         # فشلت الخطة: استخدم القالب الشامل كحل أخير
         fallback = OUTLINE_FALLBACK_SCENE_TEMPLATE.format(
-            production="\n\nمذكرة الإنتاج:\n" + raw[:3500]
+            production="\n\nمذكرة الإنتاج:\n" + raw[:2500]
         )
-        data = _call_llm(fallback, max_tokens=24000)
+        data = _call_llm(fallback, max_tokens=3200)
         return _normalize(data) if data else None
     return _finish_from_outline(outline, raw)
 
@@ -435,22 +391,24 @@ def _finish_from_outline(outline, raw):
     total = len(scenes)
     if total < 4:
         fallback = OUTLINE_FALLBACK_SCENE_TEMPLATE.format(
-            production="\n\nمذكرة الإنتاج:\n" + (raw or "")[:3500]
+            production="\n\nمذكرة الإنتاج:\n" + (raw or "")[:2500]
         )
-        data = _call_llm(fallback, max_tokens=24000)
+        data = _call_llm(fallback, max_tokens=3200)
         return _normalize(data) if data else None
     total = min(total, 50)
 
     characters = outline.get("characters") or []
-    char_text = json.dumps(characters, ensure_ascii=False)[:4000]
+    char_text = json.dumps(characters, ensure_ascii=False)[:3000]
     outline_copy = dict(outline)
     outline_copy["scenes"] = scenes[:total]
-    outline_text = json.dumps(outline_copy, ensure_ascii=False)[:5000]
-    production = "\n\nمذكرة الإنتاج من المنتج (تفاصيل إضافية اختيارية):\n" + (raw or "")[:3500]
+    outline_text = json.dumps(outline_copy, ensure_ascii=False)[:3500]
+    production = "\n\nمذكرة الإنتاج من المنتج (تفاصيل إضافية اختيارية):\n" + (raw or "")[:2500]
 
-    BATCH = 8
+    BATCH = 6
     completed = []
     for start in range(1, total + 1, BATCH):
+        if completed:
+            time.sleep(12)  # احترام حد 6000 TPM على free tier
         end = min(start + BATCH - 1, total)
         existing_summary = _summarize_scenes(completed)
         prompt = (
@@ -462,7 +420,7 @@ def _finish_from_outline(outline, raw):
             .replace("{start}", str(start))
             .replace("{end}", str(end))
         )
-        data = _call_llm(prompt, max_tokens=16000)
+        data = _call_llm(prompt, max_tokens=2800)
         if not data:
             break
         batch_scenes = data.get("scenes") or []
