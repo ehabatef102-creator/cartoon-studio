@@ -39,6 +39,11 @@ on:
         required: false
         type: boolean
         default: true
+      motion_poses:
+        description: "توليد pose حركة إضافية للمشاهد النشطة ودمجها (أ + ب) — أبطأ، حركة كرتونية أقوى"
+        required: false
+        type: boolean
+        default: false
       comfy_url:
         description: "رابط خادم ComfyUI (من notebooks/ComfyUI_Cloud.ipynb) — اتركه فارغًا للـ Pollinations المجاني"
         required: false
@@ -108,6 +113,7 @@ jobs:
           VIDEO: ${{ fromJSON(github.event.inputs.video) && '--video' || '' }}
           MUSIC: ${{ fromJSON(github.event.inputs.music) && '--music' || '' }}
           MOTION: ${{ fromJSON(github.event.inputs.motion) && '--motion' || '' }}
+          MOTION_POSES: ${{ fromJSON(github.event.inputs.motion_poses) && '1' || '0' }}
           STORY_FILE: ${{ github.event.inputs.story != '' && 'work/story.txt' || '' }}
           CHARS_FILE: ${{ github.event.inputs.characters != '' && 'work/chars.txt' || '' }}
           EVENTS_FILE: ${{ github.event.inputs.events != '' && 'work/events.txt' || '' }}
