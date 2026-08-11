@@ -224,7 +224,9 @@ def concat_videos(videos, out_mp4):
 def color_grade(input_video, out_mp4):
     _run([
         FFMPEG(), "-y", "-i", str(input_video),
-        "-vf", "eq=saturation=1.18:contrast=1.06:brightness=0.01,vignette=PI/5,noise=alls=6:allf=t",
+        "-vf", "eq=saturation=1.22:contrast=1.09:brightness=0.005:gamma=0.98,"
+              "colorbalance=rs=0.02:gs=0.0:bs=-0.02:rm=0.015:bm=-0.015:rh=0.03:bh=-0.03,"
+              "vignette=PI/4.5,noise=alls=7:allf=t",
         "-c:v", "libx264", "-preset", "veryfast", "-c:a", "copy", str(out_mp4),
     ], timeout=900)
 

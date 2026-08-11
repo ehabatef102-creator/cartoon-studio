@@ -509,9 +509,13 @@ def parse_brief(text):
     الصيغة المقبولة (مرنة):
         الفكرة/القصة: ...
         الشخصيات:
-          - الاسم | الدور | وصف ملمح بصري | (اختياري) الصوت
+          - الاسم | الدور | الألوان | الشكل والملامح | (اختياري) الصوت
+          (الوصف البصري القديم في الخانة الثانية ما زال مدعومًا)
         الأحداث: ...
     لو النص حر بدون علامات، يُعامل كله كفكرة.
+
+    حقول الشخصية: name, role, colors, shape, features, voice, desc
+    — تُجمَّع في design_prompt متناسق عند البناء.
     """
     text = (text or "").strip()
     if not text:
@@ -556,12 +560,22 @@ def parse_brief(text):
         if not parts or not parts[0]:
             continue
         ch = {"name": parts[0]}
-        if len(parts) > 1:
+        if len(parts) > 1 and parts[1]:
             ch["role"] = parts[1]
-        if len(parts) > 2:
-            ch["desc"] = parts[2]
-        if len(parts) > 3 and parts[3]:
-            ch["voice"] = parts[3]
+        # بقية الخانات: الألوان، الشكل، الملامح، الصوت (مرنة)
+        rest = [p for p in parts[2:] if p]
+        if rest:
+            colors = _extract_colors(rest[0])
+            if colors:
+                ch["colors"] = rest[0]
+            else:
+                ch["desc"] = rest[0]
+        if len(rest) > 1:
+            ch["shape"] = rest[1]
+        if len(rest) > 2:
+            ch["features"] = rest[2]
+        if len(rest) > 3 and rest[3]:
+            ch["voice"] = rest[3]
         characters.append(ch)
 
     if not idea and not characters and not events:
@@ -569,60 +583,63 @@ def parse_brief(text):
     return {"idea": idea, "characters": characters, "events": events}
 
 
-TARGET_EPISODE_SECONDS = 1500
-MAX_SCENES = 50
-MIN_SHOT_SECONDS = 24
-MAX_SHOT_SECONDS = 40
-
-_SHOT_VARIATIONS = [
-    {"framing": "wide establishing", "angle": "eye level", "movement": "slow push-in", "lens": "35mm anamorphic", "focus": "deep focus"},
-    {"framing": "medium", "angle": "low angle", "movement": "steady", "lens": "50mm anamorphic", "focus": "rack focus"},
-    {"framing": "close-up", "angle": "high angle", "movement": "slow pull-back", "lens": "85mm anamorphic", "focus": "shallow depth of field"},
-    {"framing": "extreme wide", "angle": "aerial crane", "movement": "crane up", "lens": "24mm anamorphic", "focus": "deep focus"},
-    {"framing": "over-the-shoulder", "angle": "eye level", "movement": "tracking", "lens": "65mm anamorphic", "focus": "shallow depth of field"},
-    {"framing": "detail macro", "angle": "close", "movement": "static", "lens": "100mm macro", "focus": "macro"},
-]
+_COLOR_WORDS = (
+    "أحمر", "اخمر", "حمراء", "أزرق", "ازرق", "زرقاء", "أخضر", "اخضر", "خضراء",
+    "أصفر", "اصفر", "صفراء", "برتقالي", "برتقالى", "بنفسجي", "بنفسجى", "أسود", "اسود",
+    "سوداء", "أبيض", "ابيض", "بيضاء", "رمادي", "رمادى", "رمادية", "بني", "بنى", "بنية",
+    "وردي", "وردى", "وردية", "ذهبي", "ذهبى", "ذهبية", "فضي", "فضى", "فضية", "نحاسي",
+    "فيروزي", "فيروزى", "سماوي", "سماوى", "كحلي", "كحلى", "بيج", "أرجواني", "ارجوانى",
+    "فوشيا", "زيتوني", "زيتونى", "تركواز", "أحمر و", "أزرق و", "أخضر و", "أسود و", "أبيض و",
+)
+_COLOR_PATTERN = None
 
 
-def _expand_scenes(pack, target_seconds=TARGET_EPISODE_SECONDS, max_scenes=MAX_SCENES):
-    """يوسّع الحلقة للمدة المستهدفة: يحوّل كل مشهد إلى لقطة/عدة لقطات مستقلة (~30 ثانية لكل لقطة).
+def _extract_colors(text):
+    """يُعيد النص لو كان يحتوي كلمات ألوان (لتمييز خانة الألوان عن الوصف البصري)."""
+    t = (text or "").strip()
+    if not t:
+        return None
+    if any(w in t for w in _COLOR_WORDS):
+        return t
+    if "لون" in t or "ألوان" in t or "الوان" in t:
+        return t
+    return None
 
-    يضمن أن مجموع مدد اللقطات يصل إلى target_seconds، وأن عددها لا يتجاوز max_scenes.
+
+def _design_prompt_from(ch):
+    """يبني design_prompt متناسقًا من حقول الشخصية (الألوان/الشكل/الملامح).
+
+    لو لم تُملأ الحقول صراحةً نترك المخرج يحدد التصميم (لا نغلّب رأينا).
     """
-    scenes = pack.get("pilot", {}).get("scenes") or []
-    if not scenes:
-        return pack
-    total = sum(int(sc.get("seconds", 25)) for sc in scenes)
-    if total >= target_seconds * 0.9 or len(scenes) >= max_scenes:
-        return pack
-    target_shots = min(max_scenes, max(len(scenes), int(round(target_seconds / 30))))
-    if target_shots <= len(scenes):
-        return pack
+    parts = []
+    if ch.get("colors"):
+        parts.append("color palette: " + ch["colors"])
+    if ch.get("shape"):
+        parts.append("body type: " + ch["shape"])
+    if ch.get("features"):
+        parts.append("distinctive features: " + ch["features"])
+    if not parts:
+        return ""
+    return (
+        ", ".join(parts)
+        + ". Keep these exact colors, body type, and distinctive features identical in every scene."
+    )
 
-    per = [max(1, int(round(int(sc.get("seconds", 25)) / 30))) for sc in scenes]
-    add = target_shots - sum(per)
-    while add > 0:
-        widest = max(range(len(per)), key=lambda i: per[i] * 2 + int(scenes[i].get("seconds", 25)))
-        per[widest] += 1
-        add -= 1
 
-    out = []
-    vcount = 0
-    for sc, n in zip(scenes, per):
-        dialogue = sc.get("dialogue", [])
-        for k in range(n):
-            sub = dict(sc)
-            sub["seconds"] = int(round(target_seconds / target_shots))
-            sub["shot"] = [_SHOT_VARIATIONS[vcount % len(_SHOT_VARIATIONS)]]
-            vcount += 1
-            d0 = len(dialogue) * k // n
-            d1 = len(dialogue) * (k + 1) // n
-            sub["dialogue"] = dialogue[d0:d1]
-            out.append(sub)
-    for i, sc in enumerate(out, 1):
-        sc["num"] = i
-    pack["pilot"]["scenes"] = out
-    return pack
+def _fmt_char_row(ch):
+    """صف شخصية لمذكرة المخرج (يُحفظ نصًا حرفيًا ويمنع تغيير الهوية البصرية)."""
+    bits = [ch.get("name", "")]
+    if ch.get("role"):
+        bits.append(ch.get("role", ""))
+    if ch.get("colors"):
+        bits.append("الألوان: " + ch["colors"])
+    if ch.get("shape"):
+        bits.append("شكل الجسم: " + ch["shape"])
+    if ch.get("features"):
+        bits.append("الملامح: " + ch["features"])
+    if ch.get("voice"):
+        bits.append("الصوت: " + ch["voice"])
+    return " - " + " | ".join(bits)
 
 
 def build_studio_pack(brief, seed=None):
@@ -643,12 +660,8 @@ def build_studio_pack(brief, seed=None):
         if parsed["characters"]:
             rows = []
             for ch in parsed["characters"]:
-                row = " - " + " | ".join(
-                    [ch.get("name", ""), ch.get("role", ""), ch.get("desc", "")]
-                    + ([ch["voice"]] if ch.get("voice") else [])
-                )
-                rows.append(row)
-            parts.append("الشخصيات (لا تغيّر أي شيء فيها):\n" + "\n".join(rows))
+                rows.append(_fmt_char_row(ch))
+            parts.append("الشخصيات (لا تغيّر أي شيء فيها — الالتزام بالألوان والشكل والملامح حرفيًا):\n" + "\n".join(rows))
         if parsed["events"]:
             parts.append("الأحداث:\n" + parsed["events"])
         director_text = "\n\n".join(parts)
@@ -658,8 +671,18 @@ def build_studio_pack(brief, seed=None):
         pack = transform_brief(director_text)
         if pack:
             pack["_source"] = "director"
-            _expand_scenes(pack)
             _assign_voices(pack)
+            # نثبّت الحقول الصريحة في design_prompt لكل شخصية (اتساق صارم)
+            for ch in pack.get("characters", []):
+                for parsed_ch in parsed["characters"]:
+                    if parsed_ch.get("name") == ch.get("name"):
+                        forced = _design_prompt_from(parsed_ch)
+                        if forced:
+                            ch["design_prompt"] = (forced + " " + ch.get("design_prompt", "")).strip()
+                        for k in ("colors", "shape", "features"):
+                            if parsed_ch.get(k) and not ch.get(k):
+                                ch[k] = parsed_ch[k]
+                        break
             return _apply_timings(pack)
     except Exception:
         pass
@@ -676,7 +699,6 @@ def build_custom_pack(idea, seed=None):
         pack = transform_idea(idea)
         if pack:
             pack["_source"] = "llm"
-            _expand_scenes(pack)
             _assign_voices(pack)
             return _apply_timings(pack)
     except Exception:

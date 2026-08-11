@@ -56,6 +56,30 @@ _LIGHT_KEYS = [
 ]
 _DEFAULT_LIGHT = "warm golden hour light, soft bounce fill, high-key cheerful atmosphere"
 
+# إضاءة سينمائية لكل beat (طبقات: مفتاح + خلفية + ظلال) — تُلحق للبرومبت
+_BEAT_LIGHT = {
+    "setup": "bright warm key light, clean soft shadows, cheerful high-key atmosphere, gentle rim light",
+    "inciting": "dramatic side light, emerging contrast, warm highlights with cool shadow falloff, slight haze",
+    "rising1": "dynamic three-point lighting, saturated rim light, strong contrast, energetic color bounce",
+    "rising2": "moody low-key lighting, hard rim light, deep shadows, tense color contrast",
+    "climax": "explosive dramatic lighting, intense rim flare, high contrast, bold color saturation, volumetric rays",
+    "falling": "soft fading light, warm melancholic glow, gentle shadow diffusion, hazy atmosphere",
+    "resolution": "golden hour glow, soft warm fill, serene high-key light, peaceful long shadows",
+    "crossover": "mysterious volumetric moonlight, teal-blue ambience, glowing accents, chiaroscuro",
+}
+
+# مؤثرات بصرية جوية حسب الـ beat (تُلحق للبرومبت لجو أكثر سينمائية)
+_BEAT_VFX = {
+    "setup": "crisp clean air, subtle dust particles in sunlight",
+    "inciting": "light fog rolling in, floating embers",
+    "rising1": "dynamic wind streaks, scattered leaves, motion energy",
+    "rising2": "swirling dust, dramatic atmospheric haze, debris in air",
+    "climax": "explosive particles, lightning flash accents, shockwave dust, falling sparks",
+    "falling": "settling dust, slow drifting ash, soft haze",
+    "resolution": "clear peaceful air, gentle light rays, soft sparkle",
+    "crossover": "thick volumetric fog, glowing motes, deep shadow silhouette",
+}
+
 _MOOD_FRAMING = {
     "واسعة": "wide establishing shot", "بعيدة": "wide establishing shot",
     "قريبة": "close-up", "عن قرب": "close-up",
@@ -116,6 +140,16 @@ def light_rig(mood):
         if _has_any(mood, keys):
             return light
     return _DEFAULT_LIGHT
+
+
+def beat_lighting(beat):
+    """إضاءة سينمائية مخصصة لطبيعة الـ beat الدرامي."""
+    return _BEAT_LIGHT.get((beat or "setup").lower(), _DEFAULT_LIGHT)
+
+
+def beat_vfx(beat):
+    """مؤثرات جوية بصرية (غبار/ضباب/شرر) حسب شدة المشهد."""
+    return _BEAT_VFX.get((beat or "setup").lower(), "")
 
 
 def strip_guide(text):
@@ -235,6 +269,10 @@ def compose_scene_prompt(pack, scene, beat=None):
         parts.append("Characters: " + "; ".join(chars))
     parts.append("Shot: " + shot_line)
     parts.append(light_rig(scene.get("mood", "")))
+    parts.append(beat_lighting(beat or scene.get("beat", "setup")))
+    vfx = beat_vfx(beat or scene.get("beat", "setup"))
+    if vfx:
+        parts.append(vfx)
     if _has_any(" ".join([base, scene.get("mood", ""), scene.get("title", "")]), _BUILDING_KEYS):
         parts.append(_ENV_DETAIL)
     parts.append(CINEMATIC_GRADE)

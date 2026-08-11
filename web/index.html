@@ -168,11 +168,9 @@
           <label class="field-label" for="idea">قصة الحلقة / الفكرة</label>
           <textarea id="idea" rows="4" placeholder="اكتب قصتك هنا… مثلًا: دبابة نينجا خضراء اسمها فول تكتشف أنها تقدر تتحول لأي مركبة، وبتحاول تنقذ المدينة من لص الألعاب."></textarea>
 
-          <label class="field-label" for="chars">الشخصيات <span class="field-label-sub">(الاسم | الدور | الوصف البصري — سطر لكل شخصية)</span></label>
-          <textarea id="chars" rows="4" placeholder="مثال:
-فول | البطل | دبابة نينجا خضراء بعينين كبيرتين ووشاح أحمر
-مستر لص | الشرير | رجل طويل نحيف بمعطف بنفسجي وقناع نظارة داكنة
-سارة | الصديقة | فتاة ذكية بشعر برتقالي وسترة زرقاء"></textarea>
+          <label class="field-label" for="chars">الشخصيات <span class="field-label-sub">(أضف كل شخصية بحقولها — الألوان والشكل يُثبتان في كل المشاهد)</span></label>
+          <div id="chars-builder"><!-- rendered by app.js --></div>
+          <button type="button" id="btn-add-char" class="btn btn-ghost btn-sm"><i data-lucide="plus"></i> إضافة شخصية</button>
 
           <label class="field-label" for="events">الأحداث <span class="field-label-sub">(ملخص قصة الحلقة / نقاط الحبكة — يوجه المخرج)</span></label>
           <textarea id="events" rows="4" placeholder="مثال:

@@ -58,11 +58,94 @@
     sceneSec: parseInt($("#scene-sec").value, 10) || 8,
   });
 
+  /* ---------------- باني الشخصيات (ألوان/شكل/ملامح/صوت) ---------------- */
+  const VOICE_OPTIONS = [
+    ["", "تلقائي (حسب الجنس/العمر)"],
+    ["ar-EG-SalmaNeural", "أنثى مصرية"],
+    ["ar-EG-ShakirNeural", "ذكر مصري"],
+    ["ar-SA-ZariyahNeural", "أنثى سعودية"],
+    ["ar-SA-HamedNeural", "ذكر سعودي"],
+    ["ar-SY-AmanyNeural", "أنثى شامية"],
+    ["ar-AE-FatimaNeural", "أنثى إماراتية"],
+    ["ar-AE-HamdanNeural", "ذكر إماراتي"],
+  ];
+  const EMPTY_CHAR = { name: "", role: "", colors: "", shape: "", features: "", voice: "" };
+
+  function charRowHTML(i, c) {
+    const c_ = Object.assign({}, EMPTY_CHAR, c || {});
+    const voiceOpts = VOICE_OPTIONS.map(([v, l]) => `<option value="${esc(v)}"${c_.voice === v ? " selected" : ""}>${esc(l)}</option>`).join("");
+    return `
+    <div class="char-row" data-idx="${i}">
+      <div class="char-fields">
+        <input type="text" class="char-name" placeholder="الاسم" value="${esc(c_.name)}">
+        <input type="text" class="char-role" placeholder="الدور (بطل/شرير/صديق…)" value="${esc(c_.role)}">
+      </div>
+      <div class="char-fields">
+        <input type="text" class="char-colors" placeholder="الألوان (مثال: أحمر وأسود)" value="${esc(c_.colors)}">
+        <input type="text" class="char-shape" placeholder="شكل الجسم (مثال: قصير سمين / طويل نحيف)" value="${esc(c_.shape)}">
+      </div>
+      <div class="char-fields">
+        <input type="text" class="char-features" placeholder="الملامح المميزة (شعر، عيون، ملابس، إكسسوار)" value="${esc(c_.features)}">
+        <select class="char-voice">${voiceOpts}</select>
+      </div>
+      <button type="button" class="char-del" title="حذف" aria-label="حذف الشخصية"><i data-lucide="trash-2"></i></button>
+    </div>`;
+  }
+
+  function collectChars() {
+    const rows = [];
+    $$("#chars-builder .char-row").forEach((r) => {
+      const v = (s) => $(s, r).value.trim();
+      const name = v(".char-name");
+      if (!name) return;
+      rows.push({ name, role: v(".char-role"), colors: v(".char-colors"), shape: v(".char-shape"), features: v(".char-features"), voice: v(".char-voice") });
+    });
+    return rows;
+  }
+
+  function renderCharBuilder() {
+    const wrap = $("#chars-builder");
+    if (!wrap) return;
+    if (!window._charRows) window._charRows = [Object.assign({}, EMPTY_CHAR)];
+    wrap.innerHTML = window._charRows.map(charRowHTML).join("");
+    icons();
+    $$("#chars-builder .char-del").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.closest(".char-row").dataset.idx, 10);
+        window._charRows.splice(idx, 1);
+        if (!window._charRows.length) window._charRows.push(Object.assign({}, EMPTY_CHAR));
+        renderCharBuilder();
+      });
+    });
+    $$("#chars-builder input, #chars-builder select").forEach((el) => {
+      const r = el.closest(".char-row");
+      const idx = parseInt(r.dataset.idx, 10);
+      const key = el.className.replace("char-", "");
+      el.addEventListener("input", () => { window._charRows[idx][key] = el.value; });
+      el.addEventListener("change", () => { window._charRows[idx][key] = el.value; });
+    });
+  }
+
+  function charsToText(rows) {
+    return rows
+      .map((c) => {
+        const bits = [c.name];
+        if (c.role) bits.push(c.role);
+        const visual = [c.shape, c.features].filter(Boolean).join("، ");
+        if (c.colors) bits.push(c.colors);
+        if (visual) bits.push(visual);
+        if (c.voice) bits.push(c.voice);
+        return " - " + bits.join(" | ");
+      })
+      .join("\n");
+  }
+
   /* مذكرة إنتاج المخرج: يجمع الفكرة + الشخصيات + الأحداث في نص منظم */
   function composeBrief() {
     const idea = ($("#idea").value || "").trim();
-    const chars = ($("#chars").value || "").trim();
+    const rows = collectChars();
     const events = ($("#events").value || "").trim();
+    const chars = rows.length ? charsToText(rows) : "";
     if (!idea && !chars && !events) return "";
     const parts = [];
     if (idea) parts.push("الفكرة:\n" + idea);
@@ -900,9 +983,14 @@
 
     $$(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
     $("#btn-generate").addEventListener("click", startProduction);
+    $("#btn-add-char").addEventListener("click", () => {
+      window._charRows.push(Object.assign({}, EMPTY_CHAR));
+      renderCharBuilder();
+    });
     $("#scene-sec").addEventListener("input", (e) => {
       $("#scene-sec-label").textContent = e.target.value + " ثوانٍ";
     });
+    renderCharBuilder();
     setupSettings();
     icons();
   }

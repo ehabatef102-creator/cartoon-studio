@@ -279,6 +279,9 @@ def _normalize(data):
             item["personality"] = str(ch["personality"])
         if ch.get("voice"):
             item["voice"] = str(ch["voice"])
+        for k in ("colors", "shape", "features"):
+            if ch.get(k):
+                item[k] = str(ch[k])
         characters.append(item)
     return {
         "slug": "custom-" + uuid.uuid4().hex[:6],
@@ -475,7 +478,14 @@ def _finish_from_outline(outline, raw):
     pilot = dict(outline.get("pilot") or {})
     pilot["scenes"] = completed
     data["pilot"] = pilot
-    return _normalize(data)
+    pack = _normalize(data)
+    if pack:
+        # مساعد المخرج: يراجع الاتساق ويصلح الدقيق (لا يكسر البنية)
+        try:
+            pack = assistant_review(pack)
+        except Exception:
+            pass
+    return pack
 
 
 def _summarize_scenes(scenes):
@@ -489,3 +499,81 @@ def _summarize_scenes(scenes):
         action = (sc.get("action") or "")[:90]
         lines.append(f"- مشهد {sc.get('num')}: {title} ({loc}, beat={beat}) — {action}")
     return "\n".join(lines)
+
+
+CONSISTENCY_PROMPT = (
+    "أنت مساعد مخرج (Assistant Director) في استوديو رسوم متحركة. مهمتك: مراجعة جودة الاتساق "
+    "في حلقة كتبها المخرج وإخراج قائمة تصحيحات دقيقة.\n"
+    "تحقق من:\n"
+    "1) أسماء الشخصيات مطابقة تمامًا لقائمة الشخصيات الرسمية (لا أسماء غريبة/مشابهة).\n"
+    "2) أسماء الأماكن والمواقع ثابتة (لا يتغير اسم نفس المكان في مشاهد مختلفة).\n"
+    "3) تسلسل beats منطقي: setup ← inciting ← rising ← climax ← falling ← resolution (يُسمح بتكرار نفس beat ضمن الفصل).\n"
+    "4) مدة كل مشهد بين 25 و 40 ثانية (أقل/أكثر يُصحح ضمن الحدود).\n"
+    "5) لا شخصية خارج قائمة الـ cast في حوار أو وصف، ولا مشهد بلا action.\n"
+    "أخرج JSON واحدًا فقط:\n"
+    '{"notes": ["ملاحظة مختصرة...", "..."], '
+    '"fixes": [{"num": 1, "field": "seconds|location|beat|cast|action|dialogue", '
+    '"value": "القيمة المصححة", "reason": "السبب"}], '
+    '"summary": "تقييم عام بجملة واحدة"}\n'
+    "إن لم يوجد ما يُصحح أخرج fixes فارغة.\n"
+    "الحلقة:\n{data}"
+)
+
+
+_VALID_BEATS = {"setup", "inciting", "rising1", "rising2", "climax", "falling", "resolution", "crossover"}
+
+
+def assistant_review(pack):
+    """مساعد المخرج: يراجع الحلقة المكتملة ويُطبق تصحيحات الاتساق.
+
+    لا يغير بنية الحلقة (عدد المشاهد/العناوين/الحوارات) إلا للتصحيحات الدقيقة.
+    عند فشل النداء أو غياب fixes تعود الحلقة كما هي دون كسر.
+    """
+    scenes = (pack.get("pilot") or {}).get("scenes") or []
+    if not scenes:
+        return pack
+    payload = json.dumps({
+        "characters": [c.get("name") for c in pack.get("characters", [])],
+        "locations": [s.get("location") for s in scenes],
+        "scenes": [
+            {"num": s.get("num"), "title": s.get("title"), "location": s.get("location"),
+             "beat": s.get("beat", "setup"), "seconds": s.get("seconds"),
+             "cast": s.get("cast", []), "action": s.get("action", ""),
+             "dialogue": s.get("dialogue", [])}
+            for s in scenes
+        ],
+    }, ensure_ascii=False)[:8000]
+    prompt = CONSISTENCY_PROMPT.replace("{data}", payload)
+    try:
+        data = _call_llm(prompt, max_tokens=2000)
+    except Exception:
+        return pack
+    if not data:
+        return pack
+    by_num = {int(s.get("num")): s for s in scenes}
+    for fix in data.get("fixes") or []:
+        try:
+            num = int(fix.get("num"))
+            field = (fix.get("field") or "").strip()
+            value = fix.get("value")
+        except (TypeError, ValueError):
+            continue
+        scene = by_num.get(num)
+        if not scene or field not in ("seconds", "location", "beat", "cast", "action", "dialogue"):
+            continue
+        if field == "seconds":
+            try:
+                v = int(value)
+            except (TypeError, ValueError):
+                continue
+            scene["seconds"] = max(20, min(40, v))
+        elif field == "cast":
+            allowed = {c.get("name") for c in pack.get("characters", [])}
+            if isinstance(value, list):
+                scene["cast"] = [str(x) for x in value if str(x) in allowed]
+        elif field == "beat":
+            if isinstance(value, str) and value.strip().lower() in _VALID_BEATS:
+                scene["beat"] = value.strip().lower()
+        else:
+            scene[field] = str(value)
+    return pack

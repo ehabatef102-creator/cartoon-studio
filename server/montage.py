@@ -240,10 +240,11 @@ def assemble(clips, out_mp4, keep_order=True):
     else:
         chain.append(f"{base}format=yuv420p[vcap]")
 
-    # المعالجة اللونية النهائية
+    # المعالجة اللونية النهائية: تدرج سينمائي (تباين غني + تشبع + إحماء الظلال + حبيبات فيلم + ظلال حافة)
     chain.append(
-        "[vcap]eq=saturation=1.18:contrast=1.06:brightness=0.01,"
-        f"vignette=PI/5,noise=alls=6:allf=t,format=yuv420p[vfinal]"
+        "[vcap]eq=saturation=1.22:contrast=1.09:brightness=0.005:gamma=0.98,"
+        "colorbalance=rs=0.02:gs=0.0:bs=-0.02:rm=0.015:bm=-0.015:rh=0.03:bh=-0.03,"
+        f"vignette=PI/4.5,noise=alls=7:allf=t,format=yuv420p[vfinal]"
     )
 
     inputs = [str(Path(c["path"]).resolve()) for c in clips] + [str(p.resolve()) for p, _, _ in captions]
