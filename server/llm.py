@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import time
 import uuid
 
 import httpx
@@ -345,24 +346,42 @@ def transform_idea(idea):
     return transform_brief(idea)
 
 
-def _call_llm(prompt, max_tokens=24000):
-    """يستدعي أول مزود LLM متاح (Groq ثم OpenAI ثم Gemini) ويعيد JSON مُحلَّل."""
-    if GROQ_API_KEY:
+def _call_llm(prompt, max_tokens=24000, attempts=2):
+    """يستدعي أول مزود LLM متاح (Groq ثم OpenAI ثم Gemini) ويعيد JSON مُحلَّل.
+
+    عند 413 (payload كبير) يضغط المذكرة تدريجيًا ويعيد المحاولة؛ عند 429 ينتظر ويعيد.
+    """
+    text = prompt
+    for attempt in range(attempts + 1):
         try:
-            data = _call_openai_style(
-                "https://api.groq.com/openai/v1/chat/completions",
-                {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-                {
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "system", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"},
-                },
-            )
-            return _extract_json(data["choices"][0]["message"]["content"])
+            if GROQ_API_KEY:
+                data = _call_openai_style(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                    {
+                        "model": "llama-3.3-70b-versatile",
+                        "messages": [{"role": "system", "content": text}],
+                        "temperature": 0.7,
+                        "max_tokens": max_tokens,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                return _extract_json(data["choices"][0]["message"]["content"])
         except Exception as exc:
-            print(f"[director] GROQ failed: {exc!r}", file=sys.stderr)
+            code = getattr(exc, "response", None)
+            status = code.status_code if code is not None else None
+            if status == 429:
+                print(f"[director] GROQ 429 (rate limit) — retry {attempt}", file=sys.stderr)
+                time.sleep(3 * (attempt + 1))
+                continue
+            if status == 413 and len(text) > 3000:
+                # الطلب أكبر من حد Groq: نضغط المذكرة إلى النصف
+                cut = max(1500, len(text) // 2)
+                text = text[:cut]
+                print(f"[director] GROQ 413 — shrunk prompt to {cut} chars", file=sys.stderr)
+                continue
+            print(f"[director] GROQ failed ({status}): {exc!r}", file=sys.stderr)
+            break
     if OPENAI_API_KEY:
         try:
             data = _call_openai_style(
@@ -370,7 +389,7 @@ def _call_llm(prompt, max_tokens=24000):
                 {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
                 {
                     "model": "gpt-4o-mini",
-                    "messages": [{"role": "system", "content": prompt}],
+                    "messages": [{"role": "system", "content": text}],
                     "temperature": 0.7,
                     "max_tokens": max_tokens,
                     "response_format": {"type": "json_object"},
@@ -383,7 +402,7 @@ def _call_llm(prompt, max_tokens=24000):
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
             payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
+                "contents": [{"parts": [{"text": text}]}],
                 "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"},
             }
             data = _call_openai_style(url, {"Content-Type": "application/json"}, payload)
@@ -395,31 +414,39 @@ def _call_llm(prompt, max_tokens=24000):
 
 
 def transform_brief(brief):
-    production = "\n\nمذكرة الإنتاج من المنتج:\n" + (brief or "")[:12000]
+    raw = (brief or "").strip()
 
     # المرحلة 1: خطة الحلقة (توزيع الأحداث على محاور القصة) — استجابة صغيرة تنجح دائمًا
-    outline = _call_llm(OUTLINE_PROMPT + production, max_tokens=9000)
+    production_short = "\n\nمذكرة الإنتاج من المنتج:\n" + raw[:2000]
+    outline = _call_llm(OUTLINE_PROMPT + production_short, max_tokens=9000)
     if not outline:
-        # فشلت الخطة: استخدم القالب الشامل كحل أخير (تعتمد على مخرجات قصيرة نسبيًا)
-        data = _call_llm(OUTLINE_FALLBACK_SCENE_TEMPLATE.format(production=production), max_tokens=24000)
+        # فشلت الخطة: استخدم القالب الشامل كحل أخير
+        fallback = OUTLINE_FALLBACK_SCENE_TEMPLATE.format(
+            production="\n\nمذكرة الإنتاج:\n" + raw[:3500]
+        )
+        data = _call_llm(fallback, max_tokens=24000)
         return _normalize(data) if data else None
-    return _finish_from_outline(outline, production)
+    return _finish_from_outline(outline, raw)
 
 
-def _finish_from_outline(outline, production):
+def _finish_from_outline(outline, raw):
     """المرحلة 2: يكتب المخرج المشاهد كاملة على دفعات صغيرة، ثم نجمّع الحلقة."""
     scenes = outline.get("scenes") or []
     total = len(scenes)
     if total < 4:
-        data = _call_llm(OUTLINE_FALLBACK_SCENE_TEMPLATE.format(production=production), max_tokens=24000)
+        fallback = OUTLINE_FALLBACK_SCENE_TEMPLATE.format(
+            production="\n\nمذكرة الإنتاج:\n" + (raw or "")[:3500]
+        )
+        data = _call_llm(fallback, max_tokens=24000)
         return _normalize(data) if data else None
     total = min(total, 50)
 
     characters = outline.get("characters") or []
-    char_text = json.dumps(characters, ensure_ascii=False)[:6000]
+    char_text = json.dumps(characters, ensure_ascii=False)[:4000]
     outline_copy = dict(outline)
     outline_copy["scenes"] = scenes[:total]
-    outline_text = json.dumps(outline_copy, ensure_ascii=False)[:9000]
+    outline_text = json.dumps(outline_copy, ensure_ascii=False)[:5000]
+    production = "\n\nمذكرة الإنتاج من المنتج (تفاصيل إضافية اختيارية):\n" + (raw or "")[:3500]
 
     BATCH = 8
     completed = []
