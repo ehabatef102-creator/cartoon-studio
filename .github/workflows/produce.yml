@@ -54,6 +54,11 @@ on:
         required: false
         type: string
         default: "32"
+      duration:
+        description: "مدة الحلقة بالدقائق (مثلاً 2 للاختبار السريع، 25 للحلقة الكاملة — فارغ = حسب المخرج)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -106,7 +111,12 @@ jobs:
           STORY_FILE: ${{ github.event.inputs.story != '' && 'work/story.txt' || '' }}
           CHARS_FILE: ${{ github.event.inputs.characters != '' && 'work/chars.txt' || '' }}
           EVENTS_FILE: ${{ github.event.inputs.events != '' && 'work/events.txt' || '' }}
+          DURATION_MIN: ${{ github.event.inputs.duration }}
         run: |
+          export TARGET_SECONDS=""
+          if [ -n "$DURATION_MIN" ] && [ "$DURATION_MIN" -gt 0 ] 2>/dev/null; then
+            export TARGET_SECONDS=$((DURATION_MIN * 60))
+          fi
           python scripts/produce.py \
             ${IDX:+--index $IDX} \
             ${VIDEO:+$VIDEO} \
