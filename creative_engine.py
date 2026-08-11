@@ -626,6 +626,23 @@ def _design_prompt_from(ch):
     )
 
 
+def _force_char_fields(ch, parsed_ch):
+    """يُلزم شخصية الـ pack بحقول الشخصية المدخلة (ألوان/شكل/ملامح) في design_prompt.
+
+    يُعيد True لو أُلحقت حقول فعلية، ويعلّم الشخصية كي لا تُعاد مطابقتها.
+    """
+    forced = _design_prompt_from(parsed_ch)
+    if not forced:
+        return False
+    base = (ch.get("design_prompt") or "").strip()
+    ch["design_prompt"] = (forced + " " + base).strip() if base else forced
+    for k in ("colors", "shape", "features"):
+        if parsed_ch.get(k) and not ch.get(k):
+            ch[k] = parsed_ch[k]
+    ch["has_fields"] = True
+    return True
+
+
 def _fmt_char_row(ch):
     """صف شخصية لمذكرة المخرج (يُحفظ نصًا حرفيًا ويمنع تغيير الهوية البصرية)."""
     bits = [ch.get("name", "")]
@@ -661,7 +678,7 @@ def build_studio_pack(brief, seed=None):
             rows = []
             for ch in parsed["characters"]:
                 rows.append(_fmt_char_row(ch))
-            parts.append("الشخصيات (لا تغيّر أي شيء فيها — الالتزام بالألوان والشكل والملامح حرفيًا):\n" + "\n".join(rows))
+            parts.append("الشخصيات (أسماءهم ودورهم نهائية — لا تغيّر أو تبتكر أسماء، والالتزام بالألوان والشكل والملامح حرفيًا):\n" + "\n".join(rows))
         if parsed["events"]:
             parts.append("الأحداث:\n" + parsed["events"])
         director_text = "\n\n".join(parts)
@@ -672,17 +689,35 @@ def build_studio_pack(brief, seed=None):
         if pack:
             pack["_source"] = "director"
             _assign_voices(pack)
-            # نثبّت الحقول الصريحة في design_prompt لكل شخصية (اتساق صارم)
-            for ch in pack.get("characters", []):
+            # نثبّت الحقول الصريحة في design_prompt لكل شخصية (اتساق صارم).
+            # المطابقة مرنة: بالاسم أولاً، ثم بالدور، ثم لأي شخصية غير مخصصة بعد.
+            pack_chars = pack.get("characters", [])
+            used = set()
+            # 1) مطابقة بالاسم بالضبط
+            for ch in pack_chars:
                 for parsed_ch in parsed["characters"]:
-                    if parsed_ch.get("name") == ch.get("name"):
-                        forced = _design_prompt_from(parsed_ch)
-                        if forced:
-                            ch["design_prompt"] = (forced + " " + ch.get("design_prompt", "")).strip()
-                        for k in ("colors", "shape", "features"):
-                            if parsed_ch.get(k) and not ch.get(k):
-                                ch[k] = parsed_ch[k]
+                    if parsed_ch.get("name") and parsed_ch.get("name") == ch.get("name"):
+                        _force_char_fields(ch, parsed_ch)
+                        used.add(parsed_ch.get("name"))
                         break
+            # 2) الباقي: بالدور ثم لأول شخصية غير مخصصة
+            for parsed_ch in parsed["characters"]:
+                if parsed_ch.get("name") in used:
+                    continue
+                target = None
+                if parsed_ch.get("role"):
+                    for ch in pack_chars:
+                        if (ch.get("role") or "").strip() == (parsed_ch.get("role") or "").strip():
+                            target = ch
+                            break
+                if target is None:
+                    for ch in pack_chars:
+                        if "has_fields" not in ch and ch.get("name") != parsed_ch.get("name"):
+                            if _force_char_fields(ch, parsed_ch):
+                                target = ch
+                                break
+                if target is not None:
+                    used.add(parsed_ch.get("name"))
             return _apply_timings(pack)
     except Exception:
         pass
