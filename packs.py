@@ -2,8 +2,11 @@ import random
 
 
 SERIES_STYLE_GUIDE = (
-    "2D animation, soft painterly backgrounds, warm lighting, expressive big-eyed characters, "
-    "clean bold outlines, family-friendly, consistent character model sheets, cinematic composition"
+    "high-quality 2D cartoon animation in the style of modern action cartoons, "
+    "thick bold black ink outlines, cel shading with clean flat color bands, "
+    "vibrant saturated color palette, expressive stylized characters with big eyes, "
+    "dynamic action poses, graphic shapes, minimal noise and texture, "
+    "sharp clean linework, consistent character model sheets, cinematic composition"
 )
 
 PACKS = [

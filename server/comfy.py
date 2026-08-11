@@ -19,6 +19,7 @@
 import asyncio
 import io
 import json
+import math
 import os
 import sys
 import uuid
@@ -119,6 +120,67 @@ _BEAT_POSE = {
 
 def pose_template_for(beat):
     return _POSE_TEMPLATES.get(_BEAT_POSE.get((beat or "setup").lower(), "idle"), _POSE_TEMPLATES["idle"])
+
+
+def build_pose_sequence(beat=None, frames=16, cycle=1.0):
+    """يُنتج قائمة مواقع (dicts) لهيكل OpenPose تتحرك بسلاسة بين قوامين.
+
+    يحاكي حلقة مشي/جري (walk cycle) أو حركة قتال حسب الـ beat، فيُحرَّك
+    الرأس والذراعان والساقان بموجات جيبية متقابلة — تفاصيل OpenPose حقيقية
+    لقيادة ControlNet خلال إطارات AnimateDiff.
+    """
+    base = pose_template_for(beat)
+    keys = ["head", "neck", "shoulder", "elbow", "hand", "hip", "knee", "ankle"]
+    frames_out = []
+    for f in range(frames):
+        t = (f / max(1, frames - 1)) * math.tau
+        ph = t * cycle
+        step = math.sin(ph)
+        bob = math.sin(ph * 2) * 0.015          # قفز خفيف للجذع
+        swing = math.sin(ph) * 0.09             # تأرجح الذراعين
+        bounce = math.sin(ph) * 0.10            # رفع الساقين بالتناوب
+        pts = {k: (v[0], v[1]) for k, v in base.items()}
+        pts["head"] = (pts["head"][0], pts["head"][1] + bob)
+        pts["neck"] = (pts["neck"][0], pts["neck"][1] + bob)
+        pts["shoulder"] = (pts["shoulder"][0], pts["shoulder"][1] + bob)
+        pts["hip"] = (pts["hip"][0], pts["hip"][1] + bob)
+        # ذراع أمامية/خلفية تتأرجح بطور متقابل
+        pts["elbow"] = (pts["shoulder"][0] + 0.12 + swing, pts["shoulder"][1] + 0.10)
+        pts["hand"] = (pts["shoulder"][0] + 0.24 + swing * 1.4, pts["shoulder"][1] + 0.20)
+        # ساقا تتحركان بالتناوب مع رفع الركبة
+        pts["knee"] = (pts["hip"][0] + 0.10 + bounce, pts["hip"][1] + 0.16 + max(0.0, step) * 0.06)
+        pts["ankle"] = (pts["hip"][0] + 0.18 + bounce * 1.3, pts["hip"][1] + 0.33)
+        frames_out.append({k: tuple(pts[k]) for k in keys})
+    return frames_out
+
+
+def build_pose_sequence_image(beat=None, frames=16, cycle=1.0):
+    """يعيد (قائمة صور PNG متعددة الإطارات متجاورة أفقيا) لسلسلة حركة — دفعة واحدة لـ AnimateDiff."""
+    seq = build_pose_sequence(beat, frames, cycle)
+    w, h = IMG_W // max(1, frames // 4), IMG_H
+    from PIL import Image, ImageDraw
+
+    sheet = Image.new("RGB", (w * frames, h), (0, 0, 0))
+    for fi, pts in enumerate(seq):
+        img = Image.new("RGB", (w, h), (0, 0, 0))
+        d = ImageDraw.Draw(img)
+        p = {k: (int(v[0] * w), int(v[1] * h)) for k, v in pts.items()}
+        bones = [
+            ("head", "neck"), ("neck", "shoulder"), ("shoulder", "hip"),
+            ("hip", "knee"), ("knee", "ankle"), ("shoulder", "elbow"), ("elbow", "hand"),
+        ]
+        for a, b in bones:
+            if a in p and b in p:
+                d.line([p[a], p[b]], fill=(255, 255, 255), width=7)
+        r = 11
+        for v in p.values():
+            d.ellipse([v[0] - r, v[1] - r, v[0] + r, v[1] + r], fill=(255, 255, 255))
+        hp = p["head"]
+        d.ellipse([hp[0] - 24, hp[1] - 24, hp[0] + 24, hp[1] + 24], outline=(255, 255, 255), width=7)
+        sheet.paste(img, (fi * w, 0))
+    buf = io.BytesIO()
+    sheet.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def build_pose_image(path, beat=None):
@@ -305,3 +367,144 @@ async def verify_server():
         info = await _object_info(client)
     ckpts = _names(info, "CheckpointLoaderSimple", "ckpt_name")
     return {"url": COMFY_URL, "checkpoints": len(ckpts), "controlnet": len(_names(info, "ControlNetLoader", "control_net_name"))}
+
+
+# ---------------------------------------------------------------------------
+# أنيميشن حقيقي للشخصيات عبر AnimateDiff (إذا كانت العقد مثبتة على الخادم).
+# ---------------------------------------------------------------------------
+
+_ANIM_NODES = ("AnimateDiffLoaderV1", "AnimateDiffLoaderWithContext", "ADE_AnimateDiffLoaderWithContext")
+
+
+async def _has_anim_nodes(client):
+    info = await _object_info(client)
+    return any(n in info for n in _ANIM_NODES)
+
+
+async def build_graph_animated(client, prompt, negative, seed, ckpt, pose_bytes=None, ref_bytes=None, frames=16, fps=12):
+    """Graph أنيميشن: SD1.5/2.1 checkpoint + AnimateDiff + ControlNet(سلسلة OpenPose).
+
+    pose_bytes هنا يجب أن يكون صورة sheet أفقي بإطارات متعددة متجاورة
+    (تُستخدم ControlNet للمساعدة في تثبيت الحركة عبر الفريمات).
+    """
+    info = await _object_info(client)
+    g = _Graph()
+    ckpts = _names(info, "CheckpointLoaderSimple", "ckpt_name")
+    ckpt = ckpt or pick_ckpt(ckpts)
+
+    ckpt_node = g.add("CheckpointLoaderSimple", ckpt_name=ckpt)
+    pos_node = g.add("CLIPTextEncode", clip=[ckpt_node, 1], text=prompt)
+    neg_node = g.add("CLIPTextEncode", clip=[ckpt_node, 1], text=negative)
+    latent = g.add("EmptyLatentImage", width=IMG_W, height=IMG_H, batch_size=frames)
+
+    cur_pos, cur_neg = [pos_node, 0], [neg_node, 0]
+    sampler_model = [ckpt_node, 0]
+
+    # أنيميشن: نبذل محاولة على اسم معروف لكل إصدار متاح
+    loader = None
+    for node_name in _ANIM_NODES:
+        if node_name in info:
+            try:
+                loader = g.add(node_name, model=[ckpt_node, 0], length=frames, batch_size=1,
+                               fps=fps, loop=True)
+                sampler_model = [loader, 0]
+                break
+            except Exception:
+                continue
+
+    if pose_bytes:
+        name, sub = await _upload_image(client, pose_bytes, f"pose_seq_{uuid.uuid4().hex[:6]}.png")
+        pose_load = g.add("LoadImage", image=name)
+        cn_load = g.add("ControlNetLoader", control_net_name=pick_controlnet(_names(info, "ControlNetLoader", "control_net_name")))
+        cn_apply = g.add(
+            "ControlNetApplyAdvanced",
+            positive=cur_pos, negative=cur_neg,
+            control_net=[cn_load, 0], image=[pose_load, 0],
+            strength=0.75, start_percent=0.0, end_percent=0.75,
+        )
+        cur_pos, cur_neg = [cn_apply, 0], [cn_apply, 1]
+
+    if ref_bytes:
+        name, sub = await _upload_image(client, ref_bytes, f"ref_{uuid.uuid4().hex[:6]}.png")
+        ref_load = g.add("LoadImage", image=name)
+        ip_load = g.add("IPAdapterUnifiedLoader", preset="PLUS FACE (portraits)")
+        ip_apply = g.add(
+            "IPAdapterAdvanced",
+            model=[ip_load, 0], ipadapter=[ip_load, 1],
+            image=[ref_load, 0],
+            weight=0.7, weight_type="linear", combine_embeds="concat",
+            start_at=0.0, end_at=0.85, embeds_scaling="V only",
+        )
+        sampler_model = [ip_apply, 0]
+
+    sampler = g.add(
+        "KSampler",
+        model=sampler_model, positive=cur_pos, negative=cur_neg,
+        latent_image=[latent, 0],
+        seed=seed, steps=COMFY_STEPS, cfg=7.0,
+        sampler_name="dpmpp_2m", scheduler="karras", denoise=1.0,
+    )
+    vae = g.add("VAEDecode", samples=[sampler, 0], vae=[ckpt_node, 2])
+    g.add("SaveImage", images=[vae, 0], filename_prefix="cartoon_studio_anim")
+    return g.nodes
+
+
+async def generate_animated_scene(prompt, out_video, seed, beat=None, ref_path=None, frames=16, fps=12):
+    """يولّد مقطع أنيميشن قصير عبر AnimateDiff إن توفر، وإلا يعيد None (صورة ثابتة تُستخدم)."""
+    if not COMFY_URL:
+        return None
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        if not await _has_anim_nodes(client):
+            return None
+        pose_bytes = build_pose_sequence_image(beat=beat, frames=frames)
+        ref_bytes = None
+        if ref_path and Path(ref_path).exists():
+            ref_bytes = Path(ref_path).read_bytes()
+        graph = await build_graph_animated(client, prompt, COMFY_NEGATIVE, seed, COMFY_CKPT,
+                                           pose_bytes=pose_bytes, ref_bytes=ref_bytes, frames=frames, fps=fps)
+        images = await _run_graph(client, graph, timeout=1800)
+        # نجمع الإطارات المُخرجة من SaveImage في ملف فيديو
+        if not images:
+            return None
+        video = out_video
+        if len(images) == 1:
+            # بعض الإعدادات تُخرج PNG واحد متعدد الفريمات — نعتبره صورة أولى فقط
+            await _download_image(client, images[0], video)
+            return None
+        # مخرجات متعددة الإطارات → نقوم بتحميل كل إطار ثم دمجها
+        frames_dir = Path(out_video).parent / (Path(out_video).stem + "_frames")
+        frames_dir.mkdir(parents=True, exist_ok=True)
+        frame_files = []
+        for i, meta in enumerate(images):
+            fp = frames_dir / f"{i:04d}.png"
+            await _download_image(client, meta, fp)
+            frame_files.append(fp)
+        _frames_to_video(frame_files, out_video, fps)
+        return out_video
+
+
+def _frames_to_video(frame_files, out_video, fps=12):
+    """يجمع إطارات PNG في فيديو mp4 (يستخدم ffmpeg المتوفر في المشروع)."""
+    import subprocess
+
+    exe = os.environ.get("FFMPEG") or "ffmpeg"
+    import shutil
+
+    if not shutil.which(exe):
+        try:
+            import imageio_ffmpeg
+
+            exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            return None
+    lst = Path(out_video).with_name(Path(out_video).stem + "_list.txt")
+    lst.write_text("\n".join(f"file '{f.resolve().as_posix()}'" for f in frame_files), encoding="utf-8")
+    cmd = [exe, "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+           "-vf", f"fps={fps},scale=1280:720", "-c:v", "libx264", "-preset", "fast", str(out_video)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if proc.returncode == 0:
+            return out_video
+    except Exception:
+        pass
+    return None

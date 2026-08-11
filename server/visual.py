@@ -9,8 +9,17 @@ if ROOT not in sys.path:
 from packs import SERIES_STYLE_GUIDE
 
 CINEMATIC_GRADE = (
-    "cinematic anamorphic 2.39:1 wide framing, volumetric lighting, filmic color grade, "
-    "shallow depth of field, epic composition, subtle film grain, high detail feature-film quality"
+    "cinematic anamorphic 2.39:1 wide framing, dramatic volumetric lighting, "
+    "high detail feature-film quality, bold cartoon ink outlines, cel shading, "
+    "vibrant saturated colors, clean graphic shapes, sharp environment details"
+)
+
+# كلمات تحفّز تفاصيل البيئة/المباني عندما يذكر المشهد أماكن بناء
+_BUILDING_KEYS = ("city", "town", "village", "building", "street", "tower", "castle",
+                  "مدينة", "قرية", "مبنى", "شارع", "قلعة", "برج", "سوق", "حي", "أزقة", "قصر")
+_ENV_DETAIL = (
+    "detailed background architecture, clearly defined building shapes and silhouettes, "
+    "dense urban street details, recognizable landmarks, layered depth between foreground and skyline"
 )
 
 LENS = {
@@ -212,7 +221,7 @@ def enrich_pack(pack):
 
 
 def compose_scene_prompt(pack, scene, beat=None):
-    """يجمّع برومبت الصورة النهائي: المشهد + الشخصيات + الإخراج + الإضاءة + التدرج."""
+    """يجمّع برومبت الصورة النهائي: المشهد + الشخصيات + الإخراج + الإضاءة + التفاصيل المعمارية."""
     base = (scene.get("image_prompt") or "").strip().rstrip(".")
     cast = scene.get("cast") or [c["name"] for c in extract_cast(pack, scene)]
     chars = []
@@ -226,6 +235,8 @@ def compose_scene_prompt(pack, scene, beat=None):
         parts.append("Characters: " + "; ".join(chars))
     parts.append("Shot: " + shot_line)
     parts.append(light_rig(scene.get("mood", "")))
+    if _has_any(" ".join([base, scene.get("mood", ""), scene.get("title", "")]), _BUILDING_KEYS):
+        parts.append(_ENV_DETAIL)
     parts.append(CINEMATIC_GRADE)
     return ". ".join(p for p in parts if p).rstrip(".") + "."
 

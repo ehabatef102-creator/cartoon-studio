@@ -374,6 +374,7 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
             render_still_video(title_card, None, title_video, TITLE_SECONDS, zoom_in=True)
             video_parts.append(title_video)
 
+            prev_plan = None
             for i, scene in enumerate(scenes):
                 image_file = next(images_dir.glob(f"scene_{scene['num']:02d}.*"))
                 voice_track = tmp_dir / f"scene_{scene['num']:02d}.voice.m4a"
@@ -381,9 +382,34 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                 build_scene_audio(voice_files, voice_track, scene["seconds"])
                 scene_audio = _build_scene_audio_design(tmp_dir, scene, voice_track, audio_design=audio_design)
                 scene_video = tmp_dir / f"scene_{scene['num']:02d}.mp4"
+                prompt = visual.compose_scene_prompt(pack, scene)
+                plan = motion.plan_motion(scene, prev_plan=prev_plan)
+                prev_plan = plan
                 if motion_enabled:
-                    plan = motion.plan_motion(scene)
-                    motion.render_scene_clip(FFMPEG(), image_file, scene_audio, scene_video, scene["seconds"], plan)
+                    # أولًا: تحريك حقيقي (Replicate خارجي ثم ComfyUI AnimateDiff)
+                    anim = motion.try_external_motion(image_file, scene_video, prompt, scene["seconds"], audio=scene_audio)
+                    if anim is None and comfy_active():
+                        try:
+                            from server import comfy
+                            ref_path = None
+                            cast = scene.get("cast") or [c["name"] for c in visual.extract_cast(pack, scene)]
+                            for ci, ch in enumerate(pack.get("characters", [])):
+                                if ch.get("name") in cast:
+                                    rp = job_dir / "refs" / f"char_{ci:02d}.png"
+                                    if rp.exists():
+                                        ref_path = rp
+                                    break
+                            anim = await comfy.generate_animated_scene(
+                                prompt, scene_video, job["seed"] + scene["num"],
+                                beat=scene.get("beat"), ref_path=ref_path,
+                                frames=min(16, max(8, int(scene["seconds"] * 12))),
+                            )
+                        except Exception:
+                            anim = None
+                    if anim is not None:
+                        scene_video = anim
+                    else:
+                        motion.render_scene_clip(FFMPEG(), image_file, scene_audio, scene_video, scene["seconds"], plan)
                 else:
                     zoom_in = (i % 2 == 0)
                     render_still_video(image_file, scene_audio, scene_video, scene["seconds"], zoom_in=zoom_in)
@@ -409,10 +435,13 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
             render_still_video(end_card, None, end_video, END_SECONDS, zoom_in=False)
             video_parts.append(end_video)
 
-            montage_clips = [{"path": title_video, "seconds": TITLE_SECONDS, "beat": "title"}]
+            montage_clips = [{"path": title_video, "seconds": TITLE_SECONDS, "beat": "title", "tension": 0}]
+            prev_plan = None
             for i, scene in enumerate(scenes):
                 scene_video = tmp_dir / f"scene_{scene['num']:02d}.mp4"
                 voice_files = sorted((voices_dir / f"scene_{scene['num']:02d}").glob("*.mp3"))
+                plan = motion.plan_motion(scene, prev_plan=prev_plan)
+                prev_plan = plan
                 dialogue = []
                 vf = iter(voice_files)
                 for speaker, text in scene.get("dialogue", []):
@@ -424,6 +453,8 @@ async def run_job(job, workspace, pack, render_video, audio_design=None, use_mot
                     "path": scene_video,
                     "seconds": scene["seconds"],
                     "beat": scene.get("beat", "setup"),
+                    "tension": scene.get("tension", 5),
+                    "direction": plan.get("direction", 0),
                     "dialogue": dialogue,
                 })
 

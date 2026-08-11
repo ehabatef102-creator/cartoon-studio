@@ -33,13 +33,19 @@ CLIMAX_FADE = 0.7   # مدة انتقال الذروة
 TRANSITION_BY_BEAT = {
     "setup": "fade",
     "inciting": "smoothright",
-    "rising1": "fade",
+    "rising1": "smoothright",
     "rising2": "slideleft",
     "climax": "fadeblack",
     "falling": "smoothup",
     "resolution": "fade",
     "crossover": "fade",
 }
+
+# انتقالات "الربط": تحافظ على اتجاه الحركة بين لقطتين متتاليتين (كاميرا واحدة تتحرك عبر المشاهد)
+FLOW_RIGHT = "smoothright"
+FLOW_LEFT = "smoothleft"
+FLOW_UP = "smoothup"
+FLOW_DOWN = "smoothdown"
 
 # الترتيب السردي الصحيح: عنوان ← مشاهد القصة بالـ beats ← ما بعد الشارة ← نهاية
 ORDER = {
@@ -101,11 +107,32 @@ def _transition_seconds(clips, i):
     """مدة الانتقال قبل اللقطة i (الذروة أطول وأبطأ)."""
     if i == 0:
         return 0.0
-    return CLIMAX_FADE if clips[i - 1].get("beat") == "climax" else FADE
+    tension = 5
+    try:
+        tension = int(clips[i - 1].get("tension", 5))
+    except (TypeError, ValueError):
+        pass
+    if clips[i - 1].get("beat") == "climax":
+        return max(FADE, min(1.0, CLIMAX_FADE + tension * 0.03))
+    return max(FADE, min(0.9, FADE + tension * 0.04))
 
 
-def _transition_name(prev_beat):
-    return TRANSITION_BY_BEAT.get(prev_beat, "fade")
+def _transition_name(prev_beat, tension=5, direction=0):
+    """انتقال يربط اللقطتين: استمرارية اتجاه الحركة + توتر + beat (match-cut)."""
+    beat = prev_beat or "setup"
+    if beat == "climax":
+        return "fadeblack" if tension >= 7 else "smoothup"
+    if direction < 0:
+        return FLOW_LEFT
+    if direction > 0:
+        return FLOW_RIGHT
+    if beat in ("falling", "resolution"):
+        return "fade"
+    if tension >= 8:
+        return "fadeblack"
+    if tension >= 6:
+        return "smoothup"
+    return "fade"
 
 
 def _sort_clips(clips):
@@ -190,7 +217,13 @@ def assemble(clips, out_mp4, keep_order=True):
         chain.append(f"[{i}:v]{_video_norm()}[cv{i}]")
         chain.append(f"[{i}:a]{_audio_norm()}[ca{i}]")
     for i in range(1, n):
-        tname = _transition_name(clips[i - 1].get("beat", "setup"))
+        prev = clips[i - 1]
+        tension = 5
+        try:
+            tension = int(prev.get("tension", 5))
+        except (TypeError, ValueError):
+            pass
+        tname = _transition_name(prev.get("beat", "setup"), tension=tension, direction=prev.get("direction", 0))
         td = trs[i]
         off = starts[i]
         vin = f"cx{i - 1}" if i > 1 else f"cv{i - 1}"
