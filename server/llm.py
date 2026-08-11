@@ -11,14 +11,15 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# مدة الحلقة المستهدفة بالثواني (إن ضُبط). تحدد عدد المشاهد المطلوب (مشهد ≈ 30 ثانية).
-TARGET_SECONDS = os.environ.get("TARGET_SECONDS", "").strip()
-
-
 def _target_scene_count():
-    """عدد المشاهد المستهدف من المدة (للتشغيل التجريبي السريع). يُعيد None بدون ضبط."""
+    """عدد المشاهد المستهدف من المدة (للتشغيل التجريبي السريع). يُعيد None بدون ضبط.
+
+    تُقرأ من البيئة عند كل استدعاء (وليس عند الاستيراد) حتى يضمن caller تعديلها
+    (مثلاً produce.py بمعامل --target-seconds) قبل البناء.
+    """
+    raw = os.environ.get("TARGET_SECONDS", "").strip()
     try:
-        ts = int(TARGET_SECONDS)
+        ts = int(raw)
     except (TypeError, ValueError):
         return None
     if ts < 60:

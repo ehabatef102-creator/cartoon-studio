@@ -119,6 +119,7 @@ jobs:
           fi
           python scripts/produce.py \
             ${IDX:+--index $IDX} \
+            ${TARGET_SECONDS:+--target-seconds "$TARGET_SECONDS"} \
             ${VIDEO:+$VIDEO} \
             ${MUSIC:+$MUSIC} \
             ${MOTION:+$MOTION} \

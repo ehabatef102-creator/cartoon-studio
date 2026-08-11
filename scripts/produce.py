@@ -9,6 +9,7 @@
 import argparse
 import asyncio
 import json
+import os
 import random
 import shutil
 import sys
@@ -46,6 +47,8 @@ def compose_brief(story, characters, events):
 
 
 async def produce(args):
+    if getattr(args, "target_seconds", None):
+        os.environ["TARGET_SECONDS"] = str(int(args.target_seconds))
     story = args.story
     if args.story_file:
         story = Path(args.story_file).read_text(encoding="utf-8") if Path(args.story_file).exists() else ""
@@ -121,6 +124,7 @@ def main(argv=None):
     parser.add_argument("--motion", action="store_true", help="حركة كاميرا سينمائية")
     parser.add_argument("--out", help="مجلد المخرجات (افتراضي: output/)")
     parser.add_argument("--seed", type=int, help="بذرة عشوائية للتكرار")
+    parser.add_argument("--target-seconds", type=int, help="مدة الحلقة المستهدفة بالثواني (تحد عدد المشاهد)")
     args = parser.parse_args(argv)
     return asyncio.run(produce(args))
 
